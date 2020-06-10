@@ -26,11 +26,12 @@ except ImportError:
 class DjangoDagAdmin(admin.ModelAdmin):
     """Django Admin class for django-dag."""
     change_list_template = 'admin/django_dag_admin/change_list.html'
+    order_by = ('-_prime_parent','pk')
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(
             _prime_parent=Coalesce(Min('_parents'), V(0))
-        ).order_by('-_prime_parent','pk')
+        ).order_by(*self.order_by)
 
     def get_inline_instances(self, request, obj=None):
         inline_instances = super().get_inline_instances(request, obj)
