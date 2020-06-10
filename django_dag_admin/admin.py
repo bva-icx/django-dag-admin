@@ -25,7 +25,7 @@ except ImportError:
 
 class DjangoDagAdmin(admin.ModelAdmin):
     """Django Admin class for django-dag."""
-    change_list_template = 'admin/tree_change_list.html'
+    change_list_template = 'admin/django_dag_admin/change_list.html'
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(

@@ -255,7 +255,7 @@ def check_empty_dict(GET_dict):
 
 
 @register.inclusion_tag(
-    'admin/tree_change_list_results.html', takes_context=True)
+    'admin/django_dag_admin/change_list_results.html', takes_context=True)
 def result_tree(context, cl, request):
     """
     Added 'filtered' param, so the template's js knows whether the results have
