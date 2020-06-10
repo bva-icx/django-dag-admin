@@ -41,7 +41,6 @@ class MoveEdgeForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        breakpoint()
         parent = cleaned_data['parent']
         try:
             child = cleaned_data['id'].child
@@ -89,38 +88,3 @@ class MoveEdgeForm(forms.ModelForm):
             cls.add_subtree(for_node, node, options)
         return options
 
-
-
-def moveedgeform_factory(edge_model, form=MoveEdgeForm, fields=None, exclude=None,
-                         formfield_callback=None,  widgets=None):
-    """
-    Dynamically build a MoveNodeForm subclass with the proper Meta.
-
-    :param Node model:
-        The subclass of :py:class:`Node` that will be handled
-        by the form.
-    :param form:
-        The form class that will be used as a base. By
-        default, :py:class:`MoveNodeForm` will be used.
-    :return: A :py:class:`MoveNodeForm` subclass
-    """
-    _exclude = _get_exclude_for_model(edge_model, exclude)
-
-    return modelform_factory(
-        edge_model, form, fields, _exclude, formfield_callback, widgets)
-
-
-def _get_exclude_for_model(model, exclude):
-    if exclude:
-        _exclude = tuple(exclude)
-    else:
-        _exclude = ()
-
-    if issubclass(model, NodeBase):
-        _exclude += ('children')
-    else:
-        # FIXME: We cannot identify the Edge class nodes
-        # we could look for django-dag.models.
-        #_exclude += ('child', 'parent')
-        pass
-    return _exclude
