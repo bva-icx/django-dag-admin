@@ -112,7 +112,6 @@ def get_spacer(first, depth):
         spacer = '<span class="spacer">&nbsp;</span>' * (depth)
     else:
         spacer = ''
-
     return spacer
 
 
@@ -122,7 +121,6 @@ def get_collapse(result):
                     '-</a>')
     else:
         collapse = '<span class="collapse">&nbsp;</span>'
-
     return collapse
 
 
@@ -197,6 +195,7 @@ def items_for_result(cl, result, form, depth=None):
         yield format_html(u('<td>{0}</td>'),
                           force_str(form[cl.model._meta.pk.name]))
 
+
 def get_edge_id(parent, child):
     if all([parent, child]):
         edge = child.children.through.objects.get(
@@ -205,12 +204,14 @@ def get_edge_id(parent, child):
         return edge.pk if edge else None
     return None
 
+
 def get_path_id(root_parts, leaf ):
     return '-'.join(map(
         lambda x:str(x.pk),
         chain(
             root_parts, [leaf]
         )))
+
 
 def results(cl, pathparts=[]):
     process_start_id=0
