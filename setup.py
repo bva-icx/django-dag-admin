@@ -41,6 +41,7 @@ setup_args=dict(
     long_description=codecs.open(
             os.path.join(root_dir(), 'README.rst'), encoding='utf-8'
         ).read(),
+    tests_require=['pytest'],
 
 )
 
