@@ -88,3 +88,5 @@ class MoveEdgeForm(forms.ModelForm):
             cls.add_subtree(for_node, node, options)
         return options
 
+MoveNodeForm=MoveEdgeForm
+
