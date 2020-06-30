@@ -35,7 +35,7 @@ setup_args=dict(
     license='',
     packages=find_packages(exclude=['docs']),
     package_dir={'django_dag_admin': 'django_dag_admin'},
-    #package_data={'dag': ['templates/admin/*.html']},
+    package_data={'django_dag_admin': [ 'templates/admin/django_dag_admin/*.html' ,'static/django-dag-admin/*']},
     description='Admin interface for Django-DAG a Directed Acyclic Graph implementation for Django',
     classifiers=classifiers,
     long_description=codecs.open(
