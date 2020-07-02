@@ -213,7 +213,7 @@ def get_path_id(root_parts, leaf ):
         )))
 
 
-def results(cl, pathparts=[]):
+def results(clst, pathparts=[]):
     process_start_id=0
     root=None
     if pathparts:
@@ -221,23 +221,23 @@ def results(cl, pathparts=[]):
         process_start_id=root.pk
 
     depth = len(pathparts)
-    if cl.formset:
-        for res, form in zip(cl.result_list, cl.formset.forms):
+    if clst.formset:
+        for res, form in zip(clst.result_list, clst.formset.forms):
             assert False
             yield (res.pk, process_start_id, depth,
                    res.children.count(), get_edge_id(root, res) or '',
                    get_path_id(pathparts,res),
-                   list(items_for_result(cl, res, form, depth=depth)))
+                   list(items_for_result(clst, res, form, depth=depth)))
     else:
-        process_list=cl.result_list.filter(
+        process_list=clst.result_list.filter(
                 Q(_prime_parent=process_start_id) | Q(_parents=(process_start_id,))
             ).distinct()
         for res in process_list:
             yield (res.pk, process_start_id, depth,
                    res.children.count(), get_edge_id(root, res) or '',
                    get_path_id(pathparts,res),
-                   list(items_for_result(cl, res, None, depth=depth)))
-            yield from results(cl, pathparts=pathparts+[res])
+                   list(items_for_result(clst, res, None, depth=depth)))
+            yield from results(clst, pathparts=pathparts+[res])
 
 
 def check_empty_dict(GET_dict):
