@@ -32,7 +32,7 @@ setup_args=dict(
     url='https://github.com/gammascience/django-dag-admin',
     author='Paul Gammans',
     author_email='pgammans@gannascience.co.uk',
-    license='',
+    license='Apache License 2.0',
     packages=find_packages(exclude=['docs']),
     package_dir={'django_dag_admin': 'django_dag_admin'},
     package_data={'django_dag_admin': [ 'templates/admin/django_dag_admin/*.html' ,'static/django-dag-admin/*']},
