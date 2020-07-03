@@ -16,44 +16,8 @@ from django.utils.translation import ugettext_lazy as _
 from django_dag.models import NodeBase
 from django_dag_admin.utils import get_nodedepth
 
-class MoveEdgeForm(forms.ModelForm):
-    def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
-                 initial=None, error_class=ErrorList, label_suffix=':',
-                 empty_permitted=False, instance=None, **kwargs):
 
-        opts = self._meta
-        if opts.model is None:
-            raise ValueError('ModelForm has no model class specified')
-
-        if instance:
-            parentModel = opts.model.parent.field.remote_field.model
-            choices = self.mk_dropdown_tree(parentModel, for_edge=instance)
-            lct = dict(self.base_fields['parent'].limit_choices_to)
-            lct.update({ 'pk__in' :[ cc[0] for cc in choices] })
-            self.base_fields['parent'].limit_choices_to = lct
-
-        super().__init__(
-            data=data, files=files, auto_id=auto_id, prefix=prefix,
-            initial=initial, error_class=error_class,
-            label_suffix=label_suffix, empty_permitted=empty_permitted,
-            instance=instance, **kwargs)
-
-
-    def clean(self):
-        cleaned_data = super().clean()
-        parent = cleaned_data['parent']
-        try:
-            child = cleaned_data['id'].child
-        except AttributeError:
-            return cleaned_data
-        nodeModel = child._meta.model
-        try:
-            nodeModel._meta.model.circular_checker(parent, child)
-        except ValidationError as err:
-            self.add_error('parent', err)
-        return cleaned_data
-
-
+class BaseDagMoveForm(forms.ModelForm):
     @staticmethod
     def mk_indent(level):
         return '&nbsp;&nbsp;&nbsp;&nbsp;' * (level - 1)
@@ -88,5 +52,50 @@ class MoveEdgeForm(forms.ModelForm):
             cls.add_subtree(for_node, node, options)
         return options
 
-MoveNodeForm=MoveEdgeForm
+class MoveEdgeForm(BaseDagMoveForm):
+    def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
+                 initial=None, error_class=ErrorList, label_suffix=':',
+                 empty_permitted=False, instance=None,
+                 parent_object=None,
+                 **kwargs):
 
+        opts = self._meta
+        if opts.model is None:
+            raise ValueError('ModelForm has no model class specified')
+
+        choices = None
+        parentModel = opts.model.parent.field.remote_field.model
+        if parent_object and parent_object.pk:
+            choices = self.mk_dropdown_tree(parentModel, for_node=parent_object)
+        elif instance:
+            choices = self.mk_dropdown_tree(parentModel, for_edge=instance)
+        if choices is not None:
+            lct = dict(self.base_fields['parent'].limit_choices_to)
+            lct.update({ 'pk__in' :[ cc[0] for cc in choices] })
+            self.base_fields['parent'].limit_choices_to = lct
+
+        super().__init__(
+            data=data, files=files, auto_id=auto_id, prefix=prefix,
+            initial=initial, error_class=error_class,
+            label_suffix=label_suffix, empty_permitted=empty_permitted,
+            instance=instance, **kwargs)
+
+
+    def clean(self):
+        cleaned_data = super().clean()
+        parent = cleaned_data.get('parent')
+        if parent is None:
+            return cleaned_data
+        try:
+            child = cleaned_data['id'].child
+        except AttributeError:
+            return cleaned_data
+        nodeModel = child._meta.model
+        try:
+            nodeModel._meta.model.circular_checker(parent, child)
+        except ValidationError as err:
+            self.add_error('parent', err)
+        return cleaned_data
+
+class MoveNodeForm(BaseDagMoveForm):
+    pass
