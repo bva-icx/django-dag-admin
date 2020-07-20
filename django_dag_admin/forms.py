@@ -65,10 +65,6 @@ class MoveEdgeForm(BaseDagMoveForm):
 
         choices = None
         parentModel = opts.model.parent.field.remote_field.model
-        if parent_object and parent_object.pk:
-            choices = self.mk_dropdown_tree(parentModel, for_node=parent_object)
-        elif instance:
-            choices = self.mk_dropdown_tree(parentModel, for_edge=instance)
         if choices is not None:
             lct = dict(self.base_fields['parent'].limit_choices_to)
             lct.update({ 'pk__in' :[ cc[0] for cc in choices] })
