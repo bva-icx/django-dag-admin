@@ -1,0 +1,10 @@
+*.pyc
+*~
+*.*sw*
+*.orig
+.tox/*
+.egg*
+/test_env/
+build
+dist
+*.egg-info/
