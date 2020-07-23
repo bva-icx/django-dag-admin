@@ -26,7 +26,8 @@ from django.template import Library
 from django.utils.html import conditional_escape
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
-
+from django.db.models import Min, Value as V
+from django.db.models.functions import Coalesce
 
 if sys.version < '3':
     import codecs
@@ -213,7 +214,14 @@ def get_path_id(root_parts, leaf ):
         )))
 
 
-def results(clst, pathparts=[]):
+def safe_getattr(obj, path):
+    elements = path.split(".")
+    while elements and obj is not None:
+        obj = getattr(obj,elements.pop(0),None)
+    return obj
+
+
+def results(clst,request, pathparts=[]):
     process_start_id=0
     root=None
     if pathparts:
@@ -229,15 +237,42 @@ def results(clst, pathparts=[]):
                    get_path_id(pathparts,res),
                    list(items_for_result(clst, res, form, depth=depth)))
     else:
-        process_list=clst.result_list.filter(
+        results_list = clst.result_list
+        ## If the paginator has slice our QS we can't filter it 
+        #  any further, so we need to build an equivalent unsliced QS
+
+        #
+        # We look at the query to get the model_admin object for the current
+        # page, and if we can't fnis that we use the DjangoAdmindefautl queryset
+        #
+        # The admin form queryset function adds ordering and annotations which
+        # we use so we can't just use a new queryset on the model
+        #
+
+        if not results_list.query.can_filter():
+            newslice = Q(pk__in = [ pk['pk'] for pk in results_list.values('pk')] )
+            admin = safe_getattr(request,'resolver_match.func.model_admin')
+            if admin:
+                base_qs = admin.get_queryset(request)
+            else:
+                base_qs = (
+                        results_list.model.objects
+                            .annotate(_prime_parent=Coalesce(Min('_parents'), V(0)))
+                            .order_by('-_prime_parent','pk')
+                )
+
+            results_list = base_qs.filter(pk__in = [ pk['pk'] for pk in results_list.values('pk')] )
+        process_list=results_list.filter(
                 Q(_prime_parent=process_start_id) | Q(_parents=(process_start_id,))
             ).distinct()
+
+        ## If the list as already been paginated 
         for res in process_list:
             yield (res.pk, process_start_id, depth,
                    res.children.count(), get_edge_id(root, res) or '',
                    get_path_id(pathparts,res),
                    list(items_for_result(clst, res, None, depth=depth)))
-            yield from results(clst, pathparts=pathparts+[res])
+            yield from results(clst, request, pathparts=pathparts+[res])
 
 
 def check_empty_dict(GET_dict):
@@ -277,7 +312,7 @@ def result_tree(context, cl, request):
         'filtered': not check_empty_dict(request.GET),
         'result_hidden_fields': list(result_hidden_fields(cl)),
         'result_headers': headers,
-        'results': list(results(cl)),
+        'results': list(results(cl, request)),
     }
 
 
