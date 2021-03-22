@@ -97,13 +97,26 @@ class DjangoDagAdmin(admin.ModelAdmin):
         target = self.get_node(target_id)
         edge = self.get_edge(edge_id)
 
+        if bool(node.sequence_manager):
+            if sibling_id and not as_child:
+                parent = self.get_node(parent_id)
+                sibling_before = self.get_node(sibling_id)
+            else:
+                sibling_before = target.get_last_child()
+
         try:
-            if self.validate_move(node, target, edge):
-                if edge:
-                    edge.parent=target
-                    edge.save()
+            if self.validate_move(node, target):
+                if as_clone or edge is None:
+                    if bool(node.sequence_manager):
+                        newedge = target.insert_child_after(node, sibling_before)
+                    else:
+                        newedge = target.add_child(node)
+                elif edge:
+                    edge.child.move_node(
+                            edge.parent, target, sibling_before,
+                            position = Position.AFTER if sibling_before else Position.LAST)
                 else:
-                    target.add_child(node)
+                    return HttpResponseBadRequest('Invalid move')
             else:
                 return HttpResponseBadRequest('Invalid move')
         except Exception as err:
