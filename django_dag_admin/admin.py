@@ -8,11 +8,14 @@ from django.contrib import admin, messages
 from django.db.models import Min, Value as V
 from django.db.models.functions import Coalesce
 from django.core.exceptions import ValidationError
+from django.db.models import OuterRef, Subquery
+from django.db.models import Count, F, Value
 
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import force_str
 
+from django_dag.models.order_control import Position
 
 try:
     from django.contrib.admin.options import TO_FIELD_VAR
@@ -23,12 +26,7 @@ except ImportError:
 class DjangoDagAdmin(admin.ModelAdmin):
     """Django Admin class for django-dag."""
     change_list_template = 'admin/django_dag_admin/change_list.html'
-    order_by = ('-_prime_parent','pk')
 
-    def get_queryset(self, request):
-        return super().get_queryset(request).annotate(
-            _prime_parent=Coalesce(Min('_parents'), V(0))
-        ).order_by(*self.order_by)
 
     def get_inline_instances(self, request, obj=None):
         inline_instances = super().get_inline_instances(request, obj)
@@ -63,7 +61,6 @@ class DjangoDagAdmin(admin.ModelAdmin):
         )
         new_urls = [
             url('^move/$', self.admin_site.admin_view(self.move_node), ),
-
             jsi18n_url,
         ]
         return new_urls + urls
@@ -118,7 +115,6 @@ class DjangoDagAdmin(admin.ModelAdmin):
             msg = _('Moved node "%(node)s" as sibling of "%(other)s"')
         messages.info(request, msg % {'node': node, 'other': target})
         return HttpResponse('OK')
-
 
 
 def admin_factory(form_class):
