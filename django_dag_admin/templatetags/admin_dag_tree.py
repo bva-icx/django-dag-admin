@@ -257,11 +257,21 @@ def check_empty_dict(GET_dict):
         if v and k != 'p' and k != 'all':
             empty = False
     return empty
+def result_headers(context, clist, request):
+    headers = list(base_result_headers(clist))
+    headers.insert(1 if needs_checkboxes(context) else 0, {
+        "text": '+',
+        "sortable": True,
+        "url_primary": request.path,
+        'tooltip': _('Return to dag'),
+        'class_attrib': mark_safe(' class="oder-grabber"')
+    })
+    return headers
 
 
 @register.inclusion_tag(
     'admin/django_dag_admin/change_list_results.html', takes_context=True)
-def result_tree(context, cl, request):
+def result_tree(context, clist, request):
     """
     Added 'filtered' param, so the template's js knows whether the results have
     been affected by a GET param or not. Only when the results are not filtered
@@ -269,19 +279,11 @@ def result_tree(context, cl, request):
     """
 
     # Here I'm adding an extra col on pos 2 for the drag handlers
-    headers = list(result_headers(cl))
-    headers.insert(1 if needs_checkboxes(context) else 0, {
-        'text': '+',
-        'sortable': True,
-        'url': request.path,
-        'tooltip': _('Return to ordered tree'),
-        'class_attrib': mark_safe(' class="oder-grabber"')
-    })
     return {
-        'filtered': not check_empty_dict(request.GET),
-        'result_hidden_fields': list(result_hidden_fields(cl)),
-        'result_headers': headers,
-        'results': list(results(cl, request)),
+        'draggable': True,
+        'result_hidden_fields': list(result_hidden_fields(clist)),
+        'result_headers': result_headers(context, clist, request),
+        'results': list(results(clist, request)),
     }
 
 

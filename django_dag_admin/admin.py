@@ -76,7 +76,7 @@ class DjangoDagAdmin(admin.ModelAdmin):
             return self.model.children.through.objects.get(pk=edge_id)
         return None
 
-    def validate_move(self, node, target, edge=None):
+    def validate_move(self, node, target,):
         try:
             self.model.circular_checker(target, node)
         except ValidationError:
@@ -90,6 +90,7 @@ class DjangoDagAdmin(admin.ModelAdmin):
             parent_id = request.POST['parent_id']
             edge_id = request.POST['edge_id']
             as_child = bool(int(request.POST.get('as_child', 0)))
+            as_clone = bool(int(request.POST.get('as_clone', 0)))
         except (KeyError, ValueError):
             # Some parameters were missing return a BadRequest
             return HttpResponseBadRequest('Malformed POST params')

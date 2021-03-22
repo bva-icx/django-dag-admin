@@ -1,4 +1,25 @@
-/* Treebeard Admin */
+/* Django Dag CSS */
+table thead th .groupoptions a.tree {
+    background-position: 0 0px;
+}
+table thead th .groupoptions a.list {
+    background-position: 0 -18px;
+}
+table thead th .groupoptions a {
+    position: relative;
+    width: 14px;
+    height: 14px;
+    display: inline-block;
+    background: url(icons.svg) 0 0 no-repeat;
+    background-size: 14px auto;
+}
+
+table thead th .groupoptions {
+    display: block;
+    padding: 9px 5px 0 5px;
+    float: right;
+    text-align: right;
+}
 
 #roots {
     margin: 0;
@@ -60,7 +81,7 @@
 }
 
 #drag_line {
-    border-top: 5px solid #A0A;
+    border-bottom: 5px solid #A0A;
     background: #A0A;
     display: block;
     position: absolute;

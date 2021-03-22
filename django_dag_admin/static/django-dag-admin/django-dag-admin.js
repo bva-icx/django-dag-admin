@@ -107,204 +107,207 @@
             }
         });
         // end csrf token code
-
-
-        // Don't activate drag or collapse if GET filters are set on the page
-        if ($('#has-filters').val() === "1") {
-            return;
-        }
-
         $body = $('body');
 
-        // Activate all rows for drag & drop
-        // then bind mouse down event
-        $('td.drag-handler span').addClass('active').bind('mousedown', function (evt) {
-            $ghost = $('<div id="ghost"></div>');
-            $drag_line = $('<div id="drag_line"><span></span></div>');
-            $ghost.appendTo($body);
-            $drag_line.appendTo($body);
-
-            var stop_drag = function () {
-                $ghost.remove();
-                $drag_line.remove();
-                $body.enableSelection().unbind('mousemove').unbind('mouseup');
-                node.elem.removeAttribute('style');
-            };
-
-            // Create a clone create the illusion that we're moving the node
-            var node = new Node($(this).closest('tr')[0]);
-            cloned_node = node.clone();
-            node.$elem.css({
-                'background': ACTIVE_NODE_BG_COLOR
+        if ($('#collapse-enable').val() === "1") {
+            $('a.collapse').click(function () {
+                var node = new Node($(this).closest('tr')[0]); // send the DOM node, not jQ
+                node.toggle();
+                return false;
             });
+        }
 
-            $targetRow = null;
-            as_child = false;
+        // Don't activate drag or collapse if GET filters are set on the page
+        if ($('#drag-enable').val() === "1") {
+            // Activate all rows for drag & drop
+            // then bind mouse down event
+            $('td.drag-handler span').addClass('active').bind('mousedown', function (evt) {
+                $ghost = $('<div id="ghost"></div>');
+                $drag_line = $('<div id="drag_line"><span></span></div>');
+                $ghost.appendTo($body);
+                $drag_line.appendTo($body);
 
-            // Now make the new clone move with the mouse
-            $body.disableSelection().bind('mousemove',function (evt2) {
-                $ghost.html(cloned_node).css({  // from FeinCMS :P
-                    'opacity': .8,
-                    'position': 'absolute',
-                    'top': evt2.pageY,
-                    'left': evt2.pageX - 30,
-                    'width': 600
+                var stop_drag = function () {
+                    $ghost.remove();
+                    $drag_line.remove();
+                    $body.enableSelection().unbind('mousemove').unbind('mouseup');
+                    node.elem.removeAttribute('style');
+                };
+
+                // Create a clone create the illusion that we're moving the node
+                var node = new Node($(this).closest('tr')[0]);
+                cloned_node = node.clone();
+                node.$elem.css({
+                    'background': ACTIVE_NODE_BG_COLOR
                 });
-                // Iterate through all rows and see where am I moving so I can place
-                // the drag line accordingly
-                rowHeight = node.$elem.height();
-                $('tr', node.$elem.parent()).each(function (index, element) {
-                    $row = $(element);
-                    rtop = $row.offset().top;
-                    // The tooltop will display whether I'm droping the element as
-                    // child or sibling
-                    $tooltip = $drag_line.find('span');
-                    $tooltip.css({
-                        'left': node.$elem.width() - $tooltip.width(),
-                        'height': rowHeight,
+
+                $targetRow = null;
+                as_child = false;
+
+                // Now make the new clone move with the mouse
+                $body.disableSelection().bind('mousemove',function (evt2) {
+                    $ghost.html(cloned_node).css({  // from FeinCMS :P
+                        'opacity': .8,
+                        'position': 'absolute',
+                        'top': evt2.pageY,
+                        'left': evt2.pageX - 30,
+                        'width': 600
                     });
-                    node_top = node.$elem.offset().top;
-                    as_clone = event.getModifierState("Shift");
-
-                    // Check if you are dragging over the same node
-                    if (evt2.pageY >= node_top && evt2.pageY <= node_top + rowHeight) {
-                        $targetRow = null;
-                        $tooltip.text(gettext('Abort'));
-                        $drag_line.css({
-                            'top': node_top,
+                    // Iterate through all rows and see where am I moving so I can place
+                    // the drag line accordingly
+                    rowHeight = node.$elem.height();
+                    $('tr', node.$elem.parent()).each(function (index, element) {
+                        $row = $(element);
+                        rtop = $row.offset().top;
+                        // The tooltop will display whether I'm droping the element as
+                        // child or sibling
+                        $tooltip = $drag_line.find('span');
+                        $tooltip.css({
+                            'left': node.$elem.width() - $tooltip.width(),
                             'height': rowHeight,
-                            'borderWidth': 0,
-                            'opacity': 0.8,
-                            'backgroundColor': ABORT_COLOR
                         });
-                    } else
-                    // Check if mouse is over this row
-                    if (evt2.pageY >= rtop && evt2.pageY <= rtop + rowHeight / 2) {
-                        // The mouse is positioned on the top half of a $row
-                        $targetRow = $row;
-                        as_child = false;
-                        $drag_line.css({
-                            'left': node.$elem.offset().left,
-                            'width': node.$elem.width(),
-                            'top': rtop,
-                            'borderWidth': '5px',
-                            'height': 0,
-                            'opacity': 1
-                        });
+                        node_top = node.$elem.offset().top;
+                        as_clone = event.getModifierState("Shift");
 
-                        if (as_clone === true){
-                            $tooltip.text(gettext('Clone as Sibling'));
-                        }else{
-                            $tooltip.text(gettext('Move as Sibling'));
-                        }
-
-                    } else if (evt2.pageY >= rtop + rowHeight / 2 && evt2.pageY <= rtop + rowHeight) {
-                        // The mouse is positioned on the bottom half of a row
-                        $targetRow = $row;
-                        target_node = new Node($targetRow[0]);
-                        if (target_node.is_collapsed()) {
-                            target_node.expand();
-                        }
-                        as_child = true;
-                        $drag_line.css({
-                            'top': rtop,
-                            'left': node.$elem.offset().left,
-                            'height': rowHeight,
-                            'opacity': 0.4,
-                            'width': node.$elem.width(),
-                            'borderWidth': 0,
-                            'backgroundColor': DRAG_LINE_COLOR
-                        });
-
-                        if (as_clone === true){
-                            $tooltip.text(gettext('Clone as child'));
-                        }else{
-                            $tooltip.text(gettext('Move as child'));
-                        }
-                    }
-                });
-            }).bind('mouseup',function () {
-                    if ($targetRow !== null) {
-
-                        row_id=node.elem.id.split('-')[1]
-                        target_node = new Node($targetRow[0]);
-
-                        if (target_node.node_id !== node.node_id) {
-                            /*alert('Insert node ' + node.node_name() + ' as child of: '
-                             + target_node.parent_node().node_name() + '\n and sibling of: '
-                             + target_node.node_name());*/
-                            // Call $.ajax so we can handle the error
-                            // On Drop, make an XHR call to perform the node move
-                            $.ajax({
-                                url: window.MOVE_NODE_ENDPOINT,
-                                type: 'POST',
-                                data: {
-                                    node_id: node.node_id,
-                                    parent_id: target_node.parent_id,
-                                    sibling_id: target_node.node_id,
-                                    as_child: as_child ? 1 : 0,
-                                    edge_id: node.edge_id,
-                                    as_clone: as_clone ? 1 : 0,
-
-                                },
-                                complete: function (req, status) {
-                                    // http://stackoverflow.com/questions/1439895/add-a-hash-with-javascript-to-url-without-scrolling-page/1439910#1439910
-
-                                    window.location.hash = 'path-' +
-                                        target_node.$elem.attr('id').split('-').slice(
-                                                1, as_child ? -1 : -2
-                                            ).concat([node.node_id]).join('-');
-                                    node.$elem.remove();
-                                    window.location.reload();
-                                },
-                                error: function (req, status, error) {
-                                    // On error (!200) also reload to display
-                                    // the message
-                                    window.location.hash = node.$elem.attr('id').split('-').slice(0,-1).join('-')
-                                    node.$elem.remove();
-                                    window.location.reload();
-                                }
+                        // Check if you are dragging over the same node
+                        if (evt2.pageY >= node_top && evt2.pageY <= node_top + rowHeight) {
+                            $targetRow = null;
+                            $tooltip.text(gettext('Abort'));
+                            $drag_line.css({
+                                'top': node_top,
+                                'height': rowHeight,
+                                'borderWidth': 0,
+                                'opacity': 0.8,
+                                'backgroundColor': ABORT_COLOR,
+                                'background-image': 'inherit'
                             });
+                        } else
+                        // Check if mouse is over this row
+                        if (evt2.pageY >= rtop && evt2.pageY <= rtop + rowHeight / 2) {
+                            // The mouse is positioned on the top half of a $row
+                            $targetRow = $row;
+                            target_node = new Node($targetRow[0]);
+                            if (target_node.is_collapsed()) {
+                                target_node.expand();
+                            }
+                            as_child = true;
+                            $drag_line.css({
+                                'top': rtop,
+                                'left': node.$elem.offset().left,
+                                'height': rowHeight,
+                                'opacity': 0.4,
+                                'width': node.$elem.width(),
+                                'borderWidth': 0,
+                                'backgroundColor': DRAG_LINE_COLOR,
+                                'background-image': 'inherit'
+                            });
+
+                            if (as_clone === true){
+                                $tooltip.text(interpolate(
+                                    gettext('Clone as child of %(id)s'), {id: target_node.node_id}, true));
+                            }else{
+                                $tooltip.text(interpolate(
+                                    gettext('Move as child of %(id)s'),  {id: target_node.node_id}, true));
+                            }
+                        } else if (evt2.pageY >= rtop + rowHeight / 2 && evt2.pageY <= rtop + rowHeight) {
+                            // The mouse is positioned on the bottom half of a row
+                           $targetRow = $row;
+                            as_child = false;
+                            $drag_line.css({
+                                'left': node.$elem.offset().left,
+                                'width': node.$elem.width(),
+                                'top': rtop,
+                                'borderWidth': '5px',
+                                'height': rowHeight,
+                                'opacity': 0.4,
+                                'background-image': 'linear-gradient(to bottom, '+ DRAG_LINE_COLOR +', white)',
+                            });
+                            if (as_clone === true){
+                                $tooltip.text(interpolate(
+                                    gettext('Clone as Sibling of %(id)s'), {id: target_node.node_id}, true));
+                            }else{
+                                $tooltip.text(interpolate(
+                                    gettext('Move as Sibling of %(id)s'), {id: target_node.node_id}, true));
+                            }
                         }
-                    }
-                    stop_drag();
-                }).bind('keyup', function (kbevt) {
-                    // Cancel drag on escape
-                    if (kbevt.keyCode === 27) {
+                    });
+                }).bind('mouseup',function () {
+                        if ($targetRow !== null) {
+
+                            row_id=node.elem.id.split('-')[1]
+                            target_node = new Node($targetRow[0]);
+
+                            if (target_node.node_id !== node.node_id) {
+                                /*alert('Insert node ' + node.node_name() + ' as child of: '
+                                 + target_node.parent_node().node_name() + '\n and sibling of: '
+                                 + target_node.node_name());*/
+                                // Call $.ajax so we can handle the error
+                                // On Drop, make an XHR call to perform the node move
+                                $.ajax({
+                                    url: window.MOVE_NODE_ENDPOINT,
+                                    type: 'POST',
+                                    data: {
+                                        node_id: node.node_id,
+                                        parent_id: target_node.parent_id,
+                                        sibling_id: target_node.node_id,
+                                        as_child: as_child ? 1 : 0,
+                                        edge_id: node.edge_id,
+                                        as_clone: as_clone ? 1 : 0,
+
+                                    },
+                                    complete: function (req, status) {
+                                        // http://stackoverflow.com/questions/1439895/add-a-hash-with-javascript-to-url-without-scrolling-page/1439910#1439910
+
+                                        window.location.hash = 'path-' +
+                                            target_node.$elem.attr('id').split('-').slice(
+                                                    1, as_child ? -1 : -2
+                                                ).concat([node.node_id]).join('-');
+                                        node.$elem.remove();
+                                        window.location.reload();
+                                    },
+                                    error: function (req, status, error) {
+                                        // On error (!200) also reload to display
+                                        // the message
+                                        window.location.hash = node.$elem.attr('id').split('-').slice(0,-1).join('-')
+                                        node.$elem.remove();
+                                        window.location.reload();
+                                    }
+                                });
+                            }
+                        }
                         stop_drag();
-                    }
-                });
-        });
-
-        $('a.collapse').click(function () {
-            var node = new Node($(this).closest('tr')[0]); // send the DOM node, not jQ
-            node.toggle();
-            return false;
-        });
-        var hash = window.location.hash;
-        // This is a hack, the actual element's id ends in '-id' but the url's hash
-        // doesn't, I'm doing this to avoid scrolling the page... is that a good thing?
-        if (hash) {
-            node_id = hash.split('-').slice(-1)[0];
-            $(hash).animate({
-                backgroundColor: RECENTLY_MOVED_COLOR
-            }, RECENTLY_FADE_DURATION, function () {
-                $(this).animate({
-                    backgroundColor: RECENTLY_MOVED_FADEOUT
-                }, RECENTLY_FADE_DURATION, function () {
-                    this.removeAttribute('style');
-                });
-            });
-            $('[node="'+node_id+'"]:not('+ hash+')').animate({
-                backgroundColor: RECENTLY_MOVED_CLONE
-            }, RECENTLY_FADE_DURATION/2, function () {
-                $(this).animate({
-                    backgroundColor: RECENTLY_MOVED_FADEOUT
-                }, RECENTLY_FADE_DURATION, function () {
-                    this.removeAttribute('style');
-                });
+                    }).bind('keyup', function (kbevt) {
+                        // Cancel drag on escape
+                        if (kbevt.keyCode === 27) {
+                            stop_drag();
+                        }
+                    });
             });
 
+            var hash = window.location.hash;
+            // This is a hack, the actual element's id ends in '-id' but the url's hash
+            // doesn't, I'm doing this to avoid scrolling the page... is that a good thing?
+            if (hash) {
+                node_id = hash.split('-').slice(-1)[0];
+                $(hash).animate({
+                    backgroundColor: RECENTLY_MOVED_COLOR
+                }, RECENTLY_FADE_DURATION, function () {
+                    $(this).animate({
+                        backgroundColor: RECENTLY_MOVED_FADEOUT
+                    }, RECENTLY_FADE_DURATION, function () {
+                        this.removeAttribute('style');
+                    });
+                });
+                $('[node="'+node_id+'"]:not('+ hash+')').animate({
+                    backgroundColor: RECENTLY_MOVED_CLONE
+                }, RECENTLY_FADE_DURATION/2, function () {
+                    $(this).animate({
+                        backgroundColor: RECENTLY_MOVED_FADEOUT
+                    }, RECENTLY_FADE_DURATION, function () {
+                        this.removeAttribute('style');
+                    });
+                });
+            }
 
         }
     });
