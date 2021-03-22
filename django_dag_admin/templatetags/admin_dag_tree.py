@@ -13,19 +13,22 @@ from django.db import models
 from django.db.models import Q
 
 from django.conf import settings
-from django.contrib.admin.templatetags.admin_list import (
-    result_headers, result_hidden_fields)
+from django.contrib.admin.templatetags.admin_list import result_hidden_fields
+from django.contrib.admin.templatetags.admin_list import result_headers as base_result_headers
 
 from django.contrib.admin.utils import (
-    lookup_field, display_for_field, display_for_value)
-    
+    display_for_field, display_for_value, get_fields_from_path,
+    label_for_field, lookup_field,
+)
 from django.core.exceptions import ObjectDoesNotExist
 from django.template import Library
 from django.utils.html import conditional_escape
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
 from django.db.models import Min, Value as V
-from django.db.models.functions import Coalesce
+from django.db.models import Count, F, Value
+from django.db.models import Exists
+from django_dag_admin.views import LAYOUT_VAR ,TREE_LAYOUT, LIST_LAYOUT
 
 
 register = Library()
@@ -36,11 +39,12 @@ from django.utils.html import format_html
 from django_dag_admin.templatetags import needs_checkboxes
 from django_dag_admin.utils import get_nodedepth
 
-def get_result_and_row_class(cl, field_name, result):
-    empty_value_display = cl.model_admin.get_empty_value_display()
+
+def get_result_and_row_class(clist, field_name, result):
+    empty_value_display = clist.model_admin.get_empty_value_display()
     row_classes = ['field-%s' % field_name]
     try:
-        f, attr, value = lookup_field(field_name, result, cl.model_admin)
+        f, attr, value = lookup_field(field_name, result, clist.model_admin)
     except ObjectDoesNotExist:
         result_repr = empty_value_display
     else:
@@ -76,7 +80,6 @@ def get_result_and_row_class(cl, field_name, result):
     row_class = mark_safe(' class="%s"' % ' '.join(row_classes))
     return result_repr, row_class
 
-
 def get_spacer(first, depth):
     if first:
         spacer = '<span class="spacer">&nbsp;</span>' * (depth)
@@ -85,10 +88,9 @@ def get_spacer(first, depth):
     return spacer
 
 
-def get_collapse(result):
-    if result.children.count():
-        collapse = ('<a href="#" title="" class="collapse expanded">'
-                    '-</a>')
+def get_collapse(result, has_children):
+    if has_children:
+        collapse = ('<a href="#" title="" class="collapse expanded">-</a>')
     else:
         collapse = '<span class="collapse">&nbsp;</span>'
     return collapse
@@ -102,7 +104,7 @@ def get_drag_handler(first):
     return drag_handler
 
 
-def items_for_result(cl, result, form, depth=None):
+def items_for_result(clist, result, form, depth=None, has_children=0, is_clone=0):
     """
     Generates the actual list of data.
 
@@ -111,29 +113,29 @@ def items_for_result(cl, result, form, depth=None):
     in order to alter the dispay for the first element
     """
     first = True
-    pk = cl.lookup_opts.pk.attname
-    for field_name in cl.list_display:
-        result_repr, row_class = get_result_and_row_class(cl, field_name,
+    pk = clist.lookup_opts.pk.attname
+    for field_name in clist.list_display:
+        result_repr, row_class = get_result_and_row_class(clist, field_name,
                                                           result)
         # If list_display_links not defined, add the link tag to the
         # first field
-        if (first and not cl.list_display_links) or \
-           field_name in cl.list_display_links:
+        if (first and not clist.list_display_links) or \
+           field_name in clist.list_display_links:
             table_tag = {True: 'th', False: 'td'}[first]
             # This spacer indents the nodes based on their depth
             nodedepth  = get_nodedepth(result) if depth is None else depth
             spacer = get_spacer(first, nodedepth )
 
             # This shows a collapse or expand link for nodes with childs
-            collapse = get_collapse(result)
+            collapse = get_collapse(result, has_children)
             # Add a <td/> before the first col to show the drag handler
             drag_handler = get_drag_handler(first)
             first = False
-            url = cl.url_for_result(result)
+            url = clist.url_for_result(result)
             # Convert the pk to something that can be used in Javascript.
             # Problem cases are long ints (23L) and non-ASCII strings.
-            if cl.to_field:
-                attr = str(cl.to_field)
+            if clist.to_field:
+                attr = str(clist.to_field)
             else:
                 attr = pk
             value = result.serializable_value(attr)
@@ -144,7 +146,7 @@ def items_for_result(cl, result, form, depth=None):
             yield mark_safe(
                 '%s<%s%s>%s %s <a href="%s"%s>%s</a></%s>' % (
                     drag_handler, table_tag, row_class, spacer, collapse, url,
-                    (cl.is_popup and onclickstr % result_id or ''),
+                    (clist.is_popup and onclickstr % result_id or ''),
                     conditional_escape(result_repr), table_tag))
         else:
             # By default the fields come from ModelAdmin.list_editable, but if
@@ -154,26 +156,16 @@ def items_for_result(cl, result, form, depth=None):
                     form and
                     field_name in form.fields and
                     not (
-                        field_name == cl.model._meta.pk.name and
-                        form[cl.model._meta.pk.name].is_hidden
+                        field_name == clist.model._meta.pk.name and
+                        form[clist.model._meta.pk.name].is_hidden
                     )
             ):
                 bf = form[field_name]
                 result_repr = mark_safe(force_str(bf.errors) + force_str(bf))
             yield format_html('<td{0}>{1}</td>', row_class, result_repr)
-    if form and not form[cl.model._meta.pk.name].is_hidden:
+    if form and not form[clist.model._meta.pk.name].is_hidden:
         yield format_html('<td>{0}</td>',
-                          force_str(form[cl.model._meta.pk.name]))
-
-
-def get_edge_id(parent, child):
-    if all([parent, child]):
-        edge = child.children.through.objects.get(
-            child=child.pk, parent=parent.pk
-        )
-        return edge.pk if edge else None
-    return None
-
+                          force_str(form[clist.model._meta.pk.name]))
 
 def get_path_id(root_parts, leaf ):
     return '-'.join(map(
@@ -182,87 +174,85 @@ def get_path_id(root_parts, leaf ):
             root_parts, [leaf]
         )))
 
+def results(clst, request):
+    if clst.get_layout_style(request) == LIST_LAYOUT:
+        yield from list_results(clst, request, clst.result_list ,pathparts=[])
+    else:
+        yield from tree_results(clst, request, clst.result_list ,pathparts=[])
 
-def safe_getattr(obj, path):
-    elements = path.split(".")
-    while elements and obj is not None:
-        obj = getattr(obj,elements.pop(0),None)
-    return obj
+def list_results(clst, request, result_list ,pathparts):
+
+    if clst.formset:
+        pass
+
+    else:
+        for res in result_list:
+            yield (
+                res.pk, '', '',
+                res.children_count, '', '',
+                list(items_for_result(clst, res, None,
+                    depth=0,
+                    has_children=bool(res.children),
+                    is_clone=res.usage_count,
+                )))
 
 
-def results(clst,request, pathparts=[]):
+def tree_results(clst, request, result_list ,pathparts):
+    """
+    for each row/item in the dag should yield a tuple of
+    (node_id, parent_id, node_level, children_num, edge_id, path, result)
+    Some node will be yielded multiple times as the can be attached to multiple
+    parent nodes
+
+
+    """
     process_start_id=0
     root=None
     if pathparts:
         root=pathparts[-1]
         process_start_id=root.pk
-
     depth = len(pathparts)
+
     if clst.formset:
-        for res, form in zip(clst.result_list, clst.formset.forms):
-            assert False
-            yield (res.pk, process_start_id, depth,
-                   res.children.count(), get_edge_id(root, res) or '',
-                   get_path_id(pathparts,res),
-                   list(items_for_result(clst, res, form, depth=depth)))
+        pass
+
     else:
-        results_list = clst.result_list
-        ## If the paginator has slice our QS we can't filter it 
-        #  any further, so we need to build an equivalent unsliced QS
+        root_added=[]
+        for res in result_list:
+            if res.is_child == 0 and process_start_id == 0:
+                if res.parent_id in root_added:
+                    continue
+                root_added.append(res.parent_id)
+                yield (
+                    res.parent_id, process_start_id, depth,
+                    res.siblings_count, '', get_path_id(pathparts, res.parent),
+                    list(items_for_result(clst, res.parent, None,
+                        depth=depth,
+                        has_children=bool(res.siblings_count),
+                        is_clone=res.child_usage_count,
+                    )))
+                yield from tree_results(clst, request, result_list, pathparts+[res.parent])
+            elif res.parent_id == process_start_id:
+                yield (
+                    res.child.pk, process_start_id, depth,
+                    res.children_count, res.pk, get_path_id(pathparts, res.child),
+                    list(items_for_result(clst, res.child, None,
+                        depth=depth,
+                        has_children=bool(res.children_count),
+                        is_clone=res.child_usage_count ,
+                    )))
+                yield from tree_results(clst, request, result_list, pathparts+[res.child])
 
-        #
-        # We look at the query to get the model_admin object for the current
-        # page, and if we can't fnis that we use the DjangoAdmindefautl queryset
-        #
-        # The admin form queryset function adds ordering and annotations which
-        # we use so we can't just use a new queryset on the model
-        #
-
-        if not results_list.query.can_filter():
-            newslice = Q(pk__in = [ pk['pk'] for pk in results_list.values('pk')] )
-            admin = safe_getattr(request,'resolver_match.func.model_admin')
-            if admin:
-                base_qs = admin.get_queryset(request)
-            else:
-                base_qs = (
-                        results_list.model.objects
-                            .annotate(_prime_parent=Coalesce(Min('_parents'), V(0)))
-                            .order_by('-_prime_parent','pk')
-                )
-
-            results_list = base_qs.filter(pk__in = [ pk['pk'] for pk in results_list.values('pk')] )
-        process_list=results_list.filter(
-                Q(_prime_parent=process_start_id) | Q(_parents=(process_start_id,))
-            ).distinct()
-
-        ## If the list as already been paginated 
-        for res in process_list:
-            yield (res.pk, process_start_id, depth,
-                   res.children.count(), get_edge_id(root, res) or '',
-                   get_path_id(pathparts,res),
-                   list(items_for_result(clst, res, None, depth=depth)))
-            yield from results(clst, request, pathparts=pathparts+[res])
-
-
-def check_empty_dict(GET_dict):
-    """
-    Returns True if the GET querstring contains on values, but it can contain
-    empty keys.
-    This is better than doing not bool(request.GET) as an empty key will return
-    True
-    """
-    empty = True
-    for k, v in GET_dict.items():
-        # Don't disable on p(age) or 'all' GET param
-        if v and k != 'p' and k != 'all':
-            empty = False
-    return empty
 def result_headers(context, clist, request):
     headers = list(base_result_headers(clist))
+    style = clist.get_layout_style(request) or TREE_LAYOUT
+    toggle_style = LIST_LAYOUT if style == TREE_LAYOUT else TREE_LAYOUT
     headers.insert(1 if needs_checkboxes(context) else 0, {
         "text": '+',
         "sortable": True,
+        "sort_style": style,
         "url_primary": request.path,
+        "url_toggle": clist.get_query_string({LAYOUT_VAR: toggle_style}),
         'tooltip': _('Return to dag'),
         'class_attrib': mark_safe(' class="oder-grabber"')
     })
@@ -280,7 +270,7 @@ def result_tree(context, clist, request):
 
     # Here I'm adding an extra col on pos 2 for the drag handlers
     return {
-        'draggable': True,
+        'draggable': clist.allow_node_drag(request),
         'result_hidden_fields': list(result_hidden_fields(clist)),
         'result_headers': result_headers(context, clist, request),
         'results': list(results(clist, request)),
