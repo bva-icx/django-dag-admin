@@ -11,10 +11,7 @@ from django.core.exceptions import ValidationError
 
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.utils.translation import ugettext_lazy as _
-if sys.version_info >= (3, 0):
-    from django.utils.encoding import force_str
-else:
-    from django.utils.encoding import force_unicode as force_str
+from django.utils.encoding import force_str
 
 
 try:
