@@ -207,6 +207,7 @@ class DagChangeList(ChangeList):
         if self.get_layout_style(request) != LIST_LAYOUT:
             self.result_list_extra = self.get_results_tree_extra(
                     request, result_list)
+            result_count += len(self.result_list_extra)
 
         self.result_count = result_count
         self.show_full_result_count = self.model_admin.show_full_result_count
