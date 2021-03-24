@@ -146,9 +146,12 @@ class DjangoDagAdmin(admin.ModelAdmin):
                     else:
                         newedge = target.add_child(node)
                 elif edge:
-                    edge.child.move_node(
+                    if bool(node.sequence_manager):
+                        edge.child.move_node(
                             edge.parent, target, sibling_before,
                             position = Position.AFTER if sibling_before else Position.LAST)
+                    else:
+                        edge.child.move_node(edge.parent, target)
                 else:
                     return HttpResponseBadRequest('Invalid move')
             else:
