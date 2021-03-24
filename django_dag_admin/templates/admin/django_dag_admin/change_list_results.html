@@ -34,8 +34,9 @@
                 </th>{% endfor %}
             </tr>
             </thead>
+            {% if results.attached %}
                 <tbody>
-                    {% if results.detached %}<tr>
+                    {% if results.detached or show_attached_label %}<tr>
                         <th scope="col" colspan="{{result_headers|length}}">
                             <div class="text">Attached Nodes</div>
                         </th>
@@ -58,6 +59,33 @@
                         {% endfor %}</tr>
                 {% endfor %}
                 </tbody>
+            {% endif %}
+            {% if results.detached %}
+                <tbody>
+                    {% if results.attached or show_detached_label %}<tr>
+                        <th scope="col" colspan="{{result_headers|length}}">
+                            <div class="text">Detached Nodes</div>
+                        </th>
+                    </tr>
+                    {% endif %}
+                    {% for node_id, parent_id, node_level, children_num, edge_id, path, result in results.detached %}
+                        <tr
+                            id="path-{{ path }}"
+                            class="{% cycle 'row1' 'row2' %}"
+                            level="{{ node_level }}" children-num="{{ children_num }}"
+                            parent="{{ parent_id }}" node="{{ node_id }}"
+                            edge="{{ edge_id }}"
+                            >
+                            {% for item in result %}
+                                {% if forloop.counter == 1 %}
+                                    {% for spacer in item.depth %}<span class="grab">&nbsp;
+                                        </span>{% endfor %}
+                                {% endif %}
+                                {{ item }}
+                            {% endfor %}</tr>
+                    {% endfor %}
+                </tbody>
+            {% endif %}
         </table>
         <input type="hidden" id="drag-enable" value="{{ draggable|yesno:"1,0" }}"/>
         <input type="hidden" id="collapse-enable" value="1" }}"/>

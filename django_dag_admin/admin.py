@@ -26,6 +26,8 @@ except ImportError:
 class DjangoDagAdmin(admin.ModelAdmin):
     """Django Admin class for django-dag."""
     change_list_template = 'admin/django_dag_admin/change_list.html'
+    show_attached_label = False
+    show_detached_label = True
 
     def get_changelist(self, request, **kwargs):
         """

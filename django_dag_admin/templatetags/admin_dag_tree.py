@@ -174,11 +174,33 @@ def get_path_id(root_parts, leaf ):
             root_parts, [leaf]
         )))
 
+class FakeEdge:
+    def __init__(self, parent_id, child, children_count, pk, child_usage_count):
+        self.parent_id=0
+        self.child = child
+        self.children_count = children_count
+        self.pk = pk
+        self.child_usage_count = child_usage_count
+        self.parent_used = False
+
 def results(clst, request):
+    yield None, None  # Fake entry to ensure list as started and can be split
     if clst.get_layout_style(request) == LIST_LAYOUT:
         yield from list_results(clst, request, clst.result_list ,pathparts=[])
     else:
-        yield from tree_results(clst, request, clst.result_list ,pathparts=[])
+        processlist = [
+            # Add root and island nodes
+            FakeEdge(
+                node.prime_parent, node, 1, bool(node.prime_parent) ,  node.usage_count
+
+            ) for node in clst.result_list_extra if not bool(node.prime_parent)
+        ] + list(clst.result_list) + [
+            # Add detached nodes
+            FakeEdge(
+                node.prime_parent, node, 1, bool(node.prime_parent) ,  node.usage_count
+            ) for node in clst.result_list_extra if bool(node.prime_parent)
+        ]
+        yield from tree_results(clst, request, processlist, pathparts=[])
 
 def list_results(clst, request, result_list ,pathparts):
 
@@ -194,20 +216,20 @@ def list_results(clst, request, result_list ,pathparts):
                     depth=0,
                     has_children=bool(res.children),
                     is_clone=res.usage_count,
-                )))
+                ))), None
 
 
 def tree_results(clst, request, result_list ,pathparts):
     """
-    for each row/item in the dag should yield a tuple of
+    For each row/item in the dag should yield a tuple of
     (node_id, parent_id, node_level, children_num, edge_id, path, result)
+
     Some node will be yielded multiple times as the can be attached to multiple
     parent nodes
 
 
     """
     process_start_id=0
-    root=None
     if pathparts:
         root=pathparts[-1]
         process_start_id=root.pk
@@ -219,21 +241,8 @@ def tree_results(clst, request, result_list ,pathparts):
     else:
         root_added=[]
         for res in result_list:
-            if res.is_child == 0 and process_start_id == 0:
-                if res.parent_id in root_added:
-                    continue
-                root_added.append(res.parent_id)
-                yield (
-                    res.parent_id, process_start_id, depth,
-                    res.siblings_count, '', get_path_id(pathparts, res.parent),
-                    list(items_for_result(clst, res.parent, None,
-                        depth=depth,
-                        has_children=bool(res.siblings_count),
-                        is_clone=res.child_usage_count,
-                    )))
-                yield from tree_results(clst, request, result_list, pathparts+[res.parent])
-            elif res.parent_id == process_start_id:
-                yield (
+            if res.parent_id == process_start_id or (res.pk is False and depth==0):
+                row = (
                     res.child.pk, process_start_id, depth,
                     res.children_count, res.pk, get_path_id(pathparts, res.child),
                     list(items_for_result(clst, res.child, None,
@@ -241,7 +250,22 @@ def tree_results(clst, request, result_list ,pathparts):
                         has_children=bool(res.children_count),
                         is_clone=res.child_usage_count ,
                     )))
-                yield from tree_results(clst, request, result_list, pathparts+[res.child])
+                if depth==0:
+                    root_added.append(res.child.id)
+                    if res.pk:
+                        # Detached
+                        yield None, row
+                        for srow in tree_results(clst, request, result_list, pathparts+[res.child]):
+                            yield None, srow
+                    else:
+                        # Attached
+                        yield row, None
+                        for srow in tree_results(clst, request, result_list, pathparts+[res.child]):
+                            yield srow, None
+                else:
+                    yield row
+                    yield from tree_results(clst, request, result_list, pathparts+[res.child])
+
 
 def result_headers(context, clist, request):
     headers = list(base_result_headers(clist))
@@ -268,12 +292,17 @@ def result_tree(context, clist, request):
     you can drag and sort the tree
     """
 
-    # Here I'm adding an extra col on pos 2 for the drag handlers
+    attached, detached = list(zip(*list(results(clist, request))))
     return {
         'draggable': clist.allow_node_drag(request),
+        'show_detached_label': clist.model_admin.show_detached_label,
+        'show_attached_label': clist.model_admin.show_attached_label,
         'result_hidden_fields': list(result_hidden_fields(clist)),
         'result_headers': result_headers(context, clist, request),
-        'results': list(results(clist, request)),
+        'results': {
+            'attached' : list(filter(lambda x: x is not None, attached)),
+            'detached': list(filter(lambda x: x is not None, detached)),
+        }
     }
 
 

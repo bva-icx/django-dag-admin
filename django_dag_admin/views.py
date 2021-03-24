@@ -1,10 +1,11 @@
 from django.contrib.admin.views.main import (
     ChangeList,  IGNORED_PARAMS as BASE_IGNORED_PARAMS
 )
-from django.db.models import Count, F, Value
+from django.db.models import Count, F, Value, Min, Q
+from django.db.models.functions import Coalesce
 from django.db.models import Exists
 from django.db.models import OuterRef, Subquery
-from django.db.models import ExpressionWrapper, F, IntegerField
+from django.db.models import ExpressionWrapper, F, IntegerField, TextField
 from django.contrib.admin.views.main import (
     ALL_VAR, ORDER_VAR, PAGE_VAR, SEARCH_VAR, IS_POPUP_VAR, TO_FIELD_VAR
 )
@@ -63,10 +64,68 @@ class DagChangeList(ChangeList):
             else:
                 yield "{}child__{}".format(order_type, base)
 
+    def get_results_tree_relnode_extra(self, queryset):
+        qs = self.queryset \
+            .exclude(parent_questionedges__parent__in=queryset)
+        if not qs.query.select_related:
+            qs = self.apply_select_related(qs)
+        if self.model.sequence_manager:
+            qs = qs.annotate(**{ORDERED_DAG_SEQUENCE_FIELD_NAME: Value('a', output_field=TextField())})
+
+        # Set ordering.
+        ordering = list(self.get_ordering(request, qs,))
+        qs = qs.order_by(*ordering)
+        return qs
+
+    def get_results_tree_extra(self, request, edge_queryset):
+        name = self.model.get_edge_model()._meta.model_name
+        def build_q(ref, value):
+            return Q(**{ ref % {'name' : name}: value})
+
+        def mod_query(qs):
+            if not qs.query.select_related:
+                qs = self.apply_select_related(qs)
+            if self.model.sequence_manager:
+                qs = qs.annotate(
+                    **{
+                        ORDERED_DAG_SEQUENCE_FIELD_NAME: Value(
+                            'a', output_field=TextField())
+                    })
+            qs = qs.annotate(
+                usage_count = Count('children'),
+                prime_parent= Coalesce(
+                    Min('parents__id'),
+                    Value(0, output_field=IntegerField()),
+                    output_field=IntegerField()
+                ),
+            )
+            return qs
+
+        ditached_qs = mod_query(
+            self.queryset \
+                .filter(
+                    ~Q(
+                        build_q("parent_%(name)ss__parent_id__in", edge_queryset.values('child_id')) |
+                        build_q("parent_%(name)ss__isnull", True) |
+                        Q(Q(parents__parents__isnull=True) & Q(parents__in=self.queryset))
+                    )
+                ) \
+        ).distinct()
+
+        root_qs = mod_query(
+            self.queryset.filter(build_q("parent_%(name)ss__isnull",True)))
+        qs = root_qs.union(ditached_qs)
+        # Set ordering.
+        ordering = list(self.get_ordering(request, qs,))
+        qs = qs.order_by('prime_parent', *ordering)
+        return qs
+
     def get_results_tree(self, request):
         qs = self.model.get_edge_model() \
             .objects \
-            .filter( child_id__in = self.queryset ) \
+            .filter(
+                Q(child_id__in = self.queryset )
+             ) \
             .annotate(
                 siblings_count=Count('parent__children', distinct=True),
                 is_child=Count('parent__parents'),
@@ -74,10 +133,11 @@ class DagChangeList(ChangeList):
                 child_usage_count=Subquery(
                     self.model.get_node_model() \
                         .objects \
-                        .filter(pk = OuterRef('child__id'))
+                        .filter(pk = OuterRef('child_id'))
                         .annotate(child_usage_count = Count('parents__pk'))
                         .values('child_usage_count')
                 ),
+                parent_used = Exists(self.queryset.filter(pk = OuterRef('parent_id')))
             )
 
         if not qs.query.select_related:
@@ -117,6 +177,7 @@ class DagChangeList(ChangeList):
         return qs
 
     def get_results(self, request):
+        self.result_list_extra = []
         if self.get_layout_style(request) == LIST_LAYOUT:
             qs = self.get_results_list(request)
         else:
@@ -142,6 +203,10 @@ class DagChangeList(ChangeList):
                 result_list = paginator.page(self.page_num + 1).object_list
             except InvalidPage:
                 raise IncorrectLookupParameters
+
+        if self.get_layout_style(request) != LIST_LAYOUT:
+            self.result_list_extra = self.get_results_tree_extra(
+                    request, result_list)
 
         self.result_count = result_count
         self.show_full_result_count = self.model_admin.show_full_result_count
