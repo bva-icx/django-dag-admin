@@ -102,13 +102,15 @@ class DagChangeList(ChangeList):
             )
             return qs
 
+        child_ids = list(edge_queryset.order_by().values_list('child_id',flat=True))
+        nodes_ids = list(self.queryset.order_by().values_list('pk',flat=True))
         ditached_qs = mod_query(
             self.queryset \
                 .filter(
                     ~Q(
-                        build_q("parent_%(name)ss__parent_id__in", edge_queryset.values('child_id')) |
+                        build_q("parent_%(name)ss__parent_id__in", child_ids) |
                         build_q("parent_%(name)ss__isnull", True) |
-                        Q(Q(parents__parents__isnull=True) & Q(parents__in=self.queryset))
+                        Q(Q(parents__parents__isnull=True) & Q(parents__id__in=nodes_ids))
                     )
                 ) \
             ).distinct() \
