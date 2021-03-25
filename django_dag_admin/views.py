@@ -101,7 +101,7 @@ class DagChangeList(ChangeList):
             )
             return qs
 
-        child_ids = list(edge_queryset.order_by().values_list('child_id',flat=True))
+        child_ids = list(edge_queryset.values_list('child_id',flat=True))
         nodes_ids = list(self.queryset.order_by().values_list('pk',flat=True))
         ditached_qs = mod_query(
             self.queryset \
