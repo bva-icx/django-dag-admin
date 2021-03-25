@@ -104,7 +104,7 @@ def get_drag_handler(first):
     return drag_handler
 
 
-def items_for_result(clist, result, form, depth=None, has_children=0, is_clone=0):
+def items_for_result(clist, result, form, depth=None, has_children=0):
     """
     Generates the actual list of data.
 
@@ -175,12 +175,11 @@ def get_path_id(root_parts, leaf ):
         )))
 
 class FakeEdge:
-    def __init__(self, parent_id, child, children_count, pk, child_usage_count):
+    def __init__(self, parent_id, child, children_count, pk):
         self.parent_id=0
         self.child = child
         self.children_count = children_count
         self.pk = pk
-        self.child_usage_count = child_usage_count
         self.parent_used = False
 
 def results(clst, request):
@@ -191,13 +190,13 @@ def results(clst, request):
         processlist = [
             # Add root and island nodes
             FakeEdge(
-                node.prime_parent, node, 1, bool(node.prime_parent) ,  node.usage_count
+                node.prime_parent, node, 1, bool(node.prime_parent)
 
             ) for node in clst.result_list_extra if not bool(node.prime_parent)
         ] + list(clst.result_list) + [
             # Add detached nodes
             FakeEdge(
-                node.prime_parent, node, 1, bool(node.prime_parent) ,  node.usage_count
+                node.prime_parent, node, 1, bool(node.prime_parent)
             ) for node in clst.result_list_extra if bool(node.prime_parent)
         ]
         yield from tree_results(clst, request, processlist, pathparts=[])
@@ -215,7 +214,6 @@ def list_results(clst, request, result_list ,pathparts):
                 list(items_for_result(clst, res, None,
                     depth=0,
                     has_children=bool(res.children),
-                    is_clone=res.usage_count,
                 ))), None
 
 
@@ -248,7 +246,6 @@ def tree_results(clst, request, result_list ,pathparts):
                     list(items_for_result(clst, res.child, None,
                         depth=depth,
                         has_children=bool(res.children_count),
-                        is_clone=res.child_usage_count ,
                     )))
                 if depth==0:
                     root_added.append(res.child.id)

@@ -93,7 +93,6 @@ class DagChangeList(ChangeList):
                             'a', output_field=TextField())
                     })
             qs = qs.annotate(
-                usage_count = Count('children'),
                 prime_parent= Coalesce(
                     Min('parents__id'),
                     Value(0, output_field=IntegerField()),
