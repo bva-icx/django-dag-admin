@@ -78,6 +78,7 @@ class DagChangeList(ChangeList):
         return qs
 
     def get_results_tree_extra(self, request, edge_queryset):
+        ordering = list(self.get_ordering(request, self.queryset))
         name = self.model.get_edge_model()._meta.model_name
         def build_q(ref, value):
             return Q(**{ ref % {'name' : name}: value})
@@ -110,13 +111,14 @@ class DagChangeList(ChangeList):
                         Q(Q(parents__parents__isnull=True) & Q(parents__in=self.queryset))
                     )
                 ) \
-        ).distinct()
-
+            ).distinct() \
+            .order_by()  #  Remove any order by as this is not allowed (postgres copes but not sqlite3 )
         root_qs = mod_query(
-            self.queryset.filter(build_q("parent_%(name)ss__isnull",True)))
+                self.queryset.filter(build_q("parent_%(name)ss__isnull",True))
+            ) \
+            .order_by()  #  Remove any order by as this is not allowed (postgres copes but not sqlite3 )
         qs = root_qs.union(ditached_qs)
         # Set ordering.
-        ordering = list(self.get_ordering(request, qs,))
         qs = qs.order_by('prime_parent', *ordering)
         return qs
 
