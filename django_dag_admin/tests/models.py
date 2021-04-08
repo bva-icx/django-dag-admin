@@ -15,5 +15,9 @@ class ConcreteNode(node_factory('ConcreteEdge')):
 class ConcreteEdge(edge_factory(ConcreteNode, concrete = False)):
     """Test edge, adds just one field"""
     name = models.CharField(max_length = 32, blank = True, null = True)
+    def __str__(self):  # pragma: no cover
+        return 'Edge %d' % self.pk
+
+
 
 
