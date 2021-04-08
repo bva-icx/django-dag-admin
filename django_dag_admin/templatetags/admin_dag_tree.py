@@ -15,12 +15,10 @@ from django.db.models import Q
 from django.conf import settings
 from django.contrib.admin.templatetags.admin_list import (
     result_headers, result_hidden_fields)
-try:
-    from django.contrib.admin.utils import (
-        lookup_field, display_for_field, display_for_value)
-except ImportError:  # < Django 1.8
-    from django.contrib.admin.util import (
-        lookup_field, display_for_field, display_for_value)
+
+from django.contrib.admin.utils import (
+    lookup_field, display_for_field, display_for_value)
+    
 from django.core.exceptions import ObjectDoesNotExist
 from django.template import Library
 from django.utils.html import conditional_escape
@@ -29,55 +27,31 @@ from django.utils.translation import ugettext_lazy as _
 from django.db.models import Min, Value as V
 from django.db.models.functions import Coalesce
 
-if sys.version < '3':
-    import codecs
-
-    def u(x):
-        return codecs.unicode_escape_decode(x)[0]
-else:
-    def u(x):
-        return x
 
 register = Library()
 
-if sys.version_info >= (3, 0):
-    from django.utils.encoding import force_str
-    from urllib.parse import urljoin
-else:
-    from django.utils.encoding import force_unicode as force_str
-    from urlparse import urljoin
-
-
+from django.utils.encoding import force_str
+from urllib.parse import urljoin
 from django.utils.html import format_html
-
 from django_dag_admin.templatetags import needs_checkboxes
 from django_dag_admin.utils import get_nodedepth
 
 def get_result_and_row_class(cl, field_name, result):
-    if django.VERSION >= (1, 9):
-        empty_value_display = cl.model_admin.get_empty_value_display()
-    else:
-        from django.contrib.admin.views.main import EMPTY_CHANGELIST_VALUE
-        empty_value_display = EMPTY_CHANGELIST_VALUE
+    empty_value_display = cl.model_admin.get_empty_value_display()
     row_classes = ['field-%s' % field_name]
     try:
         f, attr, value = lookup_field(field_name, result, cl.model_admin)
     except ObjectDoesNotExist:
         result_repr = empty_value_display
     else:
-        if django.VERSION >= (1, 9):
-            empty_value_display = getattr(
-                attr, 'empty_value_display', empty_value_display)
+        empty_value_display = getattr(
+            attr, 'empty_value_display', empty_value_display)
         if f is None:
             if field_name == 'action_checkbox':
                 row_classes = ['action-checkbox']
             allow_tags = getattr(attr, 'allow_tags', False)
             boolean = getattr(attr, 'boolean', False)
-            if django.VERSION >= (1, 9):
-                result_repr = display_for_value(
-                    value, empty_value_display, boolean)
-            else:
-                result_repr = display_for_value(value, boolean)
+            result_repr = display_for_value( value, empty_value_display, boolean)
             # Strip HTML tags in the resulting text, except if the
             # function has an "allow_tags" attribute set to True.
             # WARNING: this will be deprecated in Django 2.0
@@ -86,7 +60,7 @@ def get_result_and_row_class(cl, field_name, result):
             if isinstance(value, (datetime.date, datetime.time)):
                 row_classes.append('nowrap')
         else:
-            related_field_name = 'rel' if django.VERSION <= (2, 0) else 'remote_field'
+            related_field_name = 'remote_field'
             if isinstance(getattr(f, related_field_name), models.ManyToOneRel):
                 field_val = getattr(result, f.name)
                 if field_val is None:
@@ -94,13 +68,8 @@ def get_result_and_row_class(cl, field_name, result):
                 else:
                     result_repr = field_val
             else:
-                if django.VERSION >= (1, 9):
-                    result_repr = display_for_field(
-                        value, f, empty_value_display)
-                else:
-                    result_repr = display_for_field(value, f)
-            if isinstance(f, (models.DateField, models.TimeField,
-                              models.ForeignKey)):
+                result_repr = display_for_field(value, f, empty_value_display)
+            if isinstance(f, (models.DateField, models.TimeField, models.ForeignKey)):
                 row_classes.append('nowrap')
         if force_str(result_repr) == '':
             result_repr = mark_safe('&nbsp;')
@@ -173,7 +142,7 @@ def items_for_result(cl, result, form, depth=None):
                 ' onclick="opener.dismissRelatedLookupPopup(window, %s);'
                 ' return false;"')
             yield mark_safe(
-                u('%s<%s%s>%s %s <a href="%s"%s>%s</a></%s>') % (
+                '%s<%s%s>%s %s <a href="%s"%s>%s</a></%s>' % (
                     drag_handler, table_tag, row_class, spacer, collapse, url,
                     (cl.is_popup and onclickstr % result_id or ''),
                     conditional_escape(result_repr), table_tag))
@@ -191,9 +160,9 @@ def items_for_result(cl, result, form, depth=None):
             ):
                 bf = form[field_name]
                 result_repr = mark_safe(force_str(bf.errors) + force_str(bf))
-            yield format_html(u('<td{0}>{1}</td>'), row_class, result_repr)
+            yield format_html('<td{0}>{1}</td>', row_class, result_repr)
     if form and not form[cl.model._meta.pk.name].is_hidden:
-        yield format_html(u('<td>{0}</td>'),
+        yield format_html('<td>{0}</td>',
                           force_str(form[cl.model._meta.pk.name]))
 
 
@@ -288,11 +257,21 @@ def check_empty_dict(GET_dict):
         if v and k != 'p' and k != 'all':
             empty = False
     return empty
+def result_headers(context, clist, request):
+    headers = list(base_result_headers(clist))
+    headers.insert(1 if needs_checkboxes(context) else 0, {
+        "text": '+',
+        "sortable": True,
+        "url_primary": request.path,
+        'tooltip': _('Return to dag'),
+        'class_attrib': mark_safe(' class="oder-grabber"')
+    })
+    return headers
 
 
 @register.inclusion_tag(
     'admin/django_dag_admin/change_list_results.html', takes_context=True)
-def result_tree(context, cl, request):
+def result_tree(context, clist, request):
     """
     Added 'filtered' param, so the template's js knows whether the results have
     been affected by a GET param or not. Only when the results are not filtered
@@ -300,19 +279,11 @@ def result_tree(context, cl, request):
     """
 
     # Here I'm adding an extra col on pos 2 for the drag handlers
-    headers = list(result_headers(cl))
-    headers.insert(1 if needs_checkboxes(context) else 0, {
-        'text': '+',
-        'sortable': True,
-        'url': request.path,
-        'tooltip': _('Return to ordered tree'),
-        'class_attrib': mark_safe(' class="oder-grabber"')
-    })
     return {
-        'filtered': not check_empty_dict(request.GET),
-        'result_hidden_fields': list(result_hidden_fields(cl)),
-        'result_headers': headers,
-        'results': list(results(cl, request)),
+        'draggable': True,
+        'result_hidden_fields': list(result_hidden_fields(clist)),
+        'result_headers': result_headers(context, clist, request),
+        'results': list(results(clist, request)),
     }
 
 
