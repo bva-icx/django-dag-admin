@@ -47,8 +47,8 @@ class BaseDagMoveForm(forms.ModelForm):
             for_node = for_edge.child
 
         for node in model.objects.annotate(
-                Count('_parents')
-        ).filter(_parents__count=0):
+                Count('parents')
+        ).filter(parents__count=0):
             cls.add_subtree(for_node, node, options)
         return options
 

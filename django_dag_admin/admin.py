@@ -8,11 +8,14 @@ from django.contrib import admin, messages
 from django.db.models import Min, Value as V
 from django.db.models.functions import Coalesce
 from django.core.exceptions import ValidationError
+from django.db.models import OuterRef, Subquery
+from django.db.models import Count, F, Value
 
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import force_str
 
+from django_dag.models.order_control import Position
 
 try:
     from django.contrib.admin.options import TO_FIELD_VAR
@@ -23,12 +26,41 @@ except ImportError:
 class DjangoDagAdmin(admin.ModelAdmin):
     """Django Admin class for django-dag."""
     change_list_template = 'admin/django_dag_admin/change_list.html'
-    order_by = ('-_prime_parent','pk')
 
-    def get_queryset(self, request):
-        return super().get_queryset(request).annotate(
-            _prime_parent=Coalesce(Min('_parents'), V(0))
-        ).order_by(*self.order_by)
+    def get_changelist(self, request, **kwargs):
+        """
+        Return the ChangeList class for use on the changelist page.
+        """
+        from django_dag_admin.views import DagChangeList
+        return DagChangeList
+
+    def get_changelist_instance(self, request):
+        """
+        Return a `ChangeList` instance based on `request`. May raise
+        `IncorrectLookupParameters`.
+        """
+        list_display = self.get_list_display(request)
+        list_display_links = self.get_list_display_links(request, list_display)
+        # Add the action checkboxes if any actions are available.
+        if self.get_actions(request):
+            list_display = ['action_checkbox', *list_display]
+        sortable_by = self.get_sortable_by(request)
+        ChangeList = self.get_changelist(request)
+        return ChangeList(
+            request,
+            self.model,
+            list_display,
+            list_display_links,
+            self.get_list_filter(request),
+            self.date_hierarchy,
+            self.get_search_fields(request),
+            self.get_list_select_related(request),
+            self.list_per_page,
+            self.list_max_show_all,
+            self.list_editable,
+            self,
+            sortable_by,
+        )
 
     def get_inline_instances(self, request, obj=None):
         inline_instances = super().get_inline_instances(request, obj)
@@ -63,7 +95,6 @@ class DjangoDagAdmin(admin.ModelAdmin):
         )
         new_urls = [
             url('^move/$', self.admin_site.admin_view(self.move_node), ),
-
             jsi18n_url,
         ]
         return new_urls + urls
@@ -100,13 +131,26 @@ class DjangoDagAdmin(admin.ModelAdmin):
         target = self.get_node(target_id)
         edge = self.get_edge(edge_id)
 
+        if bool(node.sequence_manager):
+            if sibling_id and not as_child:
+                parent = self.get_node(parent_id)
+                sibling_before = self.get_node(sibling_id)
+            else:
+                sibling_before = target.get_last_child()
+
         try:
-            if self.validate_move(node, target, edge):
-                if edge:
-                    edge.parent=target
-                    edge.save()
+            if self.validate_move(node, target):
+                if as_clone or edge is None:
+                    if bool(node.sequence_manager):
+                        newedge = target.insert_child_after(node, sibling_before)
+                    else:
+                        newedge = target.add_child(node)
+                elif edge:
+                    edge.child.move_node(
+                            edge.parent, target, sibling_before,
+                            position = Position.AFTER if sibling_before else Position.LAST)
                 else:
-                    target.add_child(node)
+                    return HttpResponseBadRequest('Invalid move')
             else:
                 return HttpResponseBadRequest('Invalid move')
         except Exception as err:
@@ -118,7 +162,6 @@ class DjangoDagAdmin(admin.ModelAdmin):
             msg = _('Moved node "%(node)s" as sibling of "%(other)s"')
         messages.info(request, msg % {'node': node, 'other': target})
         return HttpResponse('OK')
-
 
 
 def admin_factory(form_class):

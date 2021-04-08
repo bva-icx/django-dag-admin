@@ -19,6 +19,16 @@
                             <a href="{{ header.url_toggle }}" class="toggle {% if header.ascending %}ascending{% else %}descending{% endif %}" title="{% trans "Toggle sorting" %}"></a>
                         </div>
                     {% endif %}
+                    {% if header.sort_style %}
+                        <div class="groupoptions">
+                            <a
+                                href="{{ header.url_toggle }}"
+                                class="toggle {% if header.sort_style == "tree" %}list{% else %}tree{% endif %}"
+                                title="{% trans "Toggle tree/ list view" %}"
+                            ></a>
+                        </div>
+                    {% endif %}
+                  {% endif %}
                   <div class="text">{% if header.sortable %}<a href="{{ header.url_primary }}">{{ header.text|capfirst }}</a>{% else %}<span>{{ header.text|capfirst }}</span>{% endif %}</div>
                   <div class="clear"></div>
                 </th>{% endfor %}
