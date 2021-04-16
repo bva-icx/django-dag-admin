@@ -234,7 +234,7 @@ def tree_results(clst, request, result_list ,pathparts):
     depth = len(pathparts)
 
     if clst.formset:
-        pass
+        raise NotImplemented("")
 
     else:
         root_added=[]
