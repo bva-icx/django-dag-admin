@@ -16,6 +16,7 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import force_str
 
 from django_dag.models.order_control import Position
+from .actions import actions as dag_actions
 
 try:
     from django.contrib.admin.options import TO_FIELD_VAR
@@ -28,6 +29,13 @@ class DjangoDagAdmin(admin.ModelAdmin):
     change_list_template = 'admin/django_dag_admin/change_list.html'
     show_attached_label = False
     show_detached_label = True
+
+    def _get_base_actions(self):
+        actions = list(super()._get_base_actions())
+        actions.extend(
+            self.get_action(action) for action in dag_actions or []
+        )
+        return filter(None, actions)
 
     def get_changelist(self, request, **kwargs):
         """
