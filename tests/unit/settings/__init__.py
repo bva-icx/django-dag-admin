@@ -1,7 +1,7 @@
 import os
 
 #
-# Minimal settings.py file to provide an emrty app to laucnh 
+# Minimal settings.py file to provide an emrty app to laucnh
 # our unittests from
 #
 
@@ -44,7 +44,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
 ]
 
-ROOT_URLCONF = 'urls'
+ROOT_URLCONF = 'testapp.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -60,8 +60,9 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.auth',
     'django.contrib.admin',
+    'django_dag',
     'django_dag_admin',
-    'django_dag_admin.tests',
+    'testapp',
 )
 TEMPLATES = [
     {
