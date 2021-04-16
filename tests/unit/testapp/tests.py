@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 
 from django.test import TestCase, Client
 from django.test.client import RequestFactory
+from django.urls import reverse
 
 
 #from django_dag_admin.admin import admin_factory, TO_FIELD_VAR
@@ -34,20 +35,20 @@ class AdminTests(TestCase):
         self.admin_client.force_login(self.u)
 
     def test_edge_index_reachable(self,):
-        # FIXME use urls.revese to find path
-        resp = self.admin_client.get("/admin/tests/concreteedge/", )
+        url = reverse("admin:testapp_concreteedge_changelist",)
+        resp = self.admin_client.get(url)
         self.assertEqual(resp.status_code, 200)
  
     def test_node_index_reachable(self,):
-        # FIXME use urls.revese to find path
-        resp = self.admin_client.get("/admin/tests/concretenode/", )
+        url = reverse("admin:testapp_concretenode_changelist",)
+        resp = self.admin_client.get(url, )
         self.assertEqual(resp.status_code, 200)
  
     def test_can_add_a_node(self,):
-        # FIXME use urls.revese to find path
-        resp = self.admin_client.post("/admin/tests/concretenode/add/", 
-                                        {'name':'NodeX','_save':'save'}
-                                        )
+        url = reverse(
+            "admin:testapp_concretenode_add",
+        )
+        resp = self.admin_client.post(url, {'name':'NodeX','_save':'save'})
         #print (vars(resp))
         #After addin we are redirected to the index.
         self.assertEqual(resp.status_code, 302)
