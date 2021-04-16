@@ -10,7 +10,7 @@ from django.contrib.admin.views.main import (
     ALL_VAR, ORDER_VAR, PAGE_VAR, SEARCH_VAR, IS_POPUP_VAR, TO_FIELD_VAR
 )
 # Additional changelist settings
-LAYOUT_VAR = 's'
+LAYOUT_VAR = 'sty'
 IGNORED_PARAMS = BASE_IGNORED_PARAMS + (LAYOUT_VAR, )
 
 TREE_LAYOUT = 'tree'
