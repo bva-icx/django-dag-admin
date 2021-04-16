@@ -94,10 +94,10 @@ class DagChangeList(ChangeList):
                     })
             qs = qs.annotate(
                 prime_parent= Coalesce(
-                    Min('parents__id'),
+                    F('parents__id'),
                     Value(0, output_field=IntegerField()),
                     output_field=IntegerField()
-                ),
+                )
             )
             return qs
 
@@ -118,9 +118,9 @@ class DagChangeList(ChangeList):
                 self.queryset.filter(build_q("parent_%(name)ss__isnull",True))
             ) \
             .order_by()  #  Remove any order by as this is not allowed (postgres copes but not sqlite3 )
-        qs = root_qs.union(ditached_qs)
+        qs = root_qs.union(ditached_qs).distinct()
         # Set ordering.
-        qs = qs.order_by('prime_parent', *ordering)
+        qs = qs.order_by(*ordering)
         return qs
 
     def get_results_tree(self, request):
@@ -133,13 +133,6 @@ class DagChangeList(ChangeList):
                 siblings_count=Count('parent__children', distinct=True),
                 is_child=Count('parent__parents'),
                 children_count=Count('child__children', distinct=True),
-                child_usage_count=Subquery(
-                    self.model.get_node_model() \
-                        .objects \
-                        .filter(pk = OuterRef('child_id'))
-                        .annotate(child_usage_count = Count('parents__pk'))
-                        .values('child_usage_count')
-                ),
                 parent_used = Exists(self.queryset.filter(pk = OuterRef('parent_id')))
             )
 
