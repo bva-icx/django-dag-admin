@@ -7,12 +7,13 @@ from django.contrib.admin.views.main import ChangeList
 #from django.contrib.auth.models import User, AnonymousUser
 from django.contrib.messages.storage.fallback import FallbackStorage
 #from django.db.models import Q
-#from django.template import Template, Context
+from django.template import Template, Context
 from django.contrib.auth import get_user_model
 
 from django.test import TestCase, Client
 from django.test.client import RequestFactory
 from django.urls import reverse
+from django.templatetags.static import static
 
 
 #from django_dag_admin.admin import admin_factory, TO_FIELD_VAR
@@ -45,14 +46,38 @@ class AdminTests(TestCase):
         self.assertEqual(resp.status_code, 200)
  
     def test_can_add_a_node(self,):
-        url = reverse(
-            "admin:testapp_concretenode_add",
-        )
+        url = reverse("admin:testapp_concretenode_add",)
         resp = self.admin_client.post(url, {'name':'NodeX','_save':'save'})
         #print (vars(resp))
         #After addin we are redirected to the index.
         self.assertEqual(resp.status_code, 302)
  
+
+class TestAdminDagTemplateTags(TestCase):
+    def test_dag_css(self):
+        template = Template("{% load admin_list admin_dag_tree %}{% django_dag_admin_css %}")
+        context = Context()
+        rendered = template.render(context)
+        expected = (
+            '<link rel="stylesheet" type="text/css" '
+            'href="' + static("django-dag-admin/django-dag-admin.css") + '"/>'
+        )
+        self.assertEqual(expected, rendered)
+
+    def test_dag_js(self):
+        template = Template("{% load admin_list admin_dag_tree %}{% django_dag_admin_js %}")
+        context = Context()
+        rendered = template.render(context)
+        expected = (
+            '<script type="text/javascript" '
+            'src="' + static("django-dag-admin/django-dag-admin.js") + '"></script>'
+            "<script>(function($){"
+            "jQuery = $.noConflict(true);"
+            "})(django.jQuery);</script>"
+            '<script type="text/javascript" '
+            'src="' + static("django-dag-admin/jquery-ui-1.8.5.custom.min.js") + '"></script>'
+        )
+        self.assertEqual(expected, rendered)
 
 
 
