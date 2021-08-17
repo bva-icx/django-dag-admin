@@ -12,10 +12,7 @@ from django.forms.models import modelform_factory
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
-
-from django_dag.models import NodeBase
 from django_dag_admin.utils import get_nodedepth
-
 
 class BaseDagMoveForm(forms.ModelForm):
     @staticmethod
