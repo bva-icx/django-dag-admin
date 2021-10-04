@@ -168,8 +168,8 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
-issues_uri = 'https://bdrc-jira.gammascience.co.uk/browse/{issue}'
+issues_uri = 'https://github.com/bva/django-dag-admin/issues/{issue}'
 
 
 ##JSDOC  / Sphinx js settings
-js_source_path = 'src/client-app/javascript/es7'
+js_source_path = 'src/django_dag_admin/static/'
