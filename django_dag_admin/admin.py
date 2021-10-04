@@ -110,11 +110,16 @@ class DjangoDagAdmin(admin.ModelAdmin):
         return new_urls + urls
 
     def get_node(self, node_id):
-        return self.model.objects.get(pk=node_id)
+        if node_id:
+            return self.model.objects.get(pk=node_id)
+        return None
 
-    def get_edge(self, edge_id):
-        if edge_id:
-            return self.model.children.through.objects.get(pk=edge_id)
+    def get_edge(self, parent_id, child_id):
+        if parent_id and child_id:
+            return self.model.children.through.objects.filter(
+                child_id=child_id,
+                parent_id=parent_id
+                ).first()
         return None
 
     def validate_move(self, node, target,):
@@ -128,8 +133,8 @@ class DjangoDagAdmin(admin.ModelAdmin):
         try:
             node_id = request.POST['node_id']
             sibling_id = request.POST['sibling_id']
-            parent_id = request.POST['parent_id']
-            edge_id = request.POST['edge_id']
+            node_parent_id = request.POST['node_parent_id']
+            sibling_parent_id = request.POST['sibling_parent_id']
             as_child = bool(int(request.POST.get('as_child', 0)))
             as_clone = bool(int(request.POST.get('as_clone', 0)))
         except (KeyError, ValueError):
@@ -137,19 +142,27 @@ class DjangoDagAdmin(admin.ModelAdmin):
             return HttpResponseBadRequest('Malformed POST params')
 
         node = self.get_node(node_id)
-        target_id = sibling_id if as_child else parent_id
+        target_id = sibling_id if as_child else sibling_parent_id
         target = self.get_node(target_id)
-        edge = self.get_edge(edge_id)
+        edge = self.get_edge(node_parent_id, node_id)
 
         if bool(node.sequence_manager):
             if sibling_id and not as_child:
-                parent = self.get_node(parent_id)
                 sibling_before = self.get_node(sibling_id)
             else:
                 sibling_before = target.get_last_child()
-
         try:
-            if self.validate_move(node, target):
+            if target is None or self.validate_move(node, target):
+                if target is None:
+                    if node.parents.count() > 1:
+                        messages.error(request, _('Node has too many parents'))
+                        return HttpResponseBadRequest('Too many parents')
+                    elif edge:
+                        messages.info(request, _('Move node "%(node)s" to root' % {'node': node }))
+                        edge.delete()
+                        return HttpResponse('OK')
+                    # No move needed
+                    return HttpResponse('OK')
                 if as_clone or edge is None:
                     if bool(node.sequence_manager):
                         newedge = target.insert_child_after(node, sibling_before)
@@ -163,8 +176,10 @@ class DjangoDagAdmin(admin.ModelAdmin):
                     else:
                         edge.child.move_node(edge.parent, target)
                 else:
+                    messages.error(request, _('Invalid move'))
                     return HttpResponseBadRequest('Invalid move')
             else:
+                messages.error(request, _('Invalid topological move, causes circular node paths'))
                 return HttpResponseBadRequest('Invalid move')
         except Exception as err:
             return HttpResponseBadRequest('Exception raised during move')
