@@ -31,7 +31,11 @@ class DjangoDagAdmin(admin.ModelAdmin):
     show_detached_label = True
 
     def _get_base_actions(self):
-        actions = list(super()._get_base_actions())
+        actions = list([
+            [action_fn, action, action_text]
+            for action_fn, action, action_text in super()._get_base_actions()
+            if action != 'delete_selected'
+        ])
         actions.extend(
             self.get_action(action) for action in dag_actions or []
         )
