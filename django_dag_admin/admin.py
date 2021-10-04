@@ -37,6 +37,10 @@ class DjangoDagAdmin(admin.ModelAdmin):
         )
         return filter(None, actions)
 
+    def get_queryset(self, request):
+        qs=super().get_queryset(request)
+        oqs = qs.with_sort_sequence()
+        return oqs
 
     def get_object(self, request, object_id, from_field=None):
         """
