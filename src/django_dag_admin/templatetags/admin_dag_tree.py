@@ -5,42 +5,31 @@ These are to support the adding of drag and drop to the change list
 """
 
 import datetime
-import sys
 import logging
 from itertools import chain
-
-import django
 from django.db import models
-from django.db.models import Q
-
-from django.conf import settings
 from django.contrib.admin.templatetags.admin_list import result_hidden_fields
-from django.contrib.admin.templatetags.admin_list import result_headers as base_result_headers
-
+from django.contrib.admin.templatetags.admin_list import (
+    result_headers as base_result_headers
+)
 from django.contrib.admin.utils import (
-    display_for_field, display_for_value, get_fields_from_path,
-    label_for_field, lookup_field,
+    display_for_field,
+    display_for_value,
+    lookup_field,
 )
 from django.core.exceptions import ObjectDoesNotExist
 from django.template import Library
 from django.templatetags.static import static
-from django.utils.html import conditional_escape
+from django.utils.encoding import force_str
+from django.utils.html import conditional_escape, format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
-from django.db.models import Min, Value as V
-from django.db.models import Count, F, Value
-from django.db.models import Exists
-from django_dag_admin.views import LAYOUT_VAR ,TREE_LAYOUT, LIST_LAYOUT
-
-
-register = Library()
-
-from django.utils.encoding import force_str
-from urllib.parse import urljoin
-from django.utils.html import format_html
+from django_dag_admin.views import LAYOUT_VAR, TREE_LAYOUT, LIST_LAYOUT
 from django_dag_admin.templatetags import needs_checkboxes
 from django_dag_admin.utils import get_nodedepth
 
+
+register = Library()
 logger = logging.getLogger(__name__)
 
 
@@ -59,7 +48,7 @@ def get_result_and_row_class(clist, field_name, result):
                 row_classes = ['action-checkbox']
             allow_tags = getattr(attr, 'allow_tags', False)
             boolean = getattr(attr, 'boolean', False)
-            result_repr = display_for_value( value, empty_value_display, boolean)
+            result_repr = display_for_value(value, empty_value_display, boolean)
             # Strip HTML tags in the resulting text, except if the
             # function has an "allow_tags" attribute set to True.
             # WARNING: this will be deprecated in Django 2.0
@@ -83,6 +72,7 @@ def get_result_and_row_class(clist, field_name, result):
             result_repr = mark_safe('&nbsp;')
     row_class = mark_safe(' class="%s"' % ' '.join(row_classes))
     return result_repr, row_class
+
 
 def get_spacer(first, depth):
     if first:
@@ -110,7 +100,7 @@ def get_drag_handler(first):
 
 def get_detached_path_items(clist, upper_parent, node_path):
     for parent in upper_parent.ancestors:
-        if str(parent.pk).rjust(4,'0') in node_path:
+        if str(parent.pk).rjust(4, '0') in node_path:
             for attr in ['pk']:
                 value = parent.serializable_value(attr)
                 result_id = "'%s'" % force_str(value)
@@ -118,10 +108,13 @@ def get_detached_path_items(clist, upper_parent, node_path):
                 onclickstr = (
                     ' onclick="opener.dismissRelatedLookupPopup(window, %s);'
                     ' return false;"')
-                yield mark_safe('<a href="%s"%s>%s</a>' % (
-                        url, (clist.is_popup and onclickstr % result_id or ''),
+                yield mark_safe(
+                    '<a href="%s"%s>%s</a>' % (
+                        url,
+                        (clist.is_popup and onclickstr % result_id or ''),
                         conditional_escape(force_str(value))
-                        ))
+                    )
+                )
 
 
 def items_for_result(clist, result, form, depth=None, has_children=0):
@@ -143,8 +136,8 @@ def items_for_result(clist, result, form, depth=None, has_children=0):
            field_name in clist.list_display_links:
             table_tag = {True: 'th', False: 'td'}[first]
             # This spacer indents the nodes based on their depth
-            nodedepth  = get_nodedepth(result) if depth is None else depth
-            spacer = get_spacer(first, nodedepth )
+            nodedepth = get_nodedepth(result) if depth is None else depth
+            spacer = get_spacer(first, nodedepth)
 
             # This shows a collapse or expand link for nodes with childs
             collapse = get_collapse(result, has_children)
@@ -188,9 +181,9 @@ def items_for_result(clist, result, form, depth=None, has_children=0):
                           force_str(form[clist.model._meta.pk.name]))
 
 
-def get_path_id(root_parts, leaf ):
+def get_path_id(root_parts, leaf):
     return '-'.join(map(
-        lambda x:str(x.pk),
+        lambda x: str(x.pk),
         chain(
             root_parts, [leaf]
         )))
@@ -199,27 +192,34 @@ def get_path_id(root_parts, leaf ):
 def results(clst, request):
     yield None, None  # Fake entry to ensure list as started and can be split
     if clst.get_layout_style(request) == LIST_LAYOUT:
-        yield from list_results(clst, request, clst.result_list ,pathparts=[])
-
+        yield from list_results(clst, request, clst.result_list)
     else:
-        yield from tree_results(clst, request, clst.result_list, pathparts=[], ppath='')
+        yield from tree_results(clst, request, clst.result_list)
 
 
-def list_results(clst, request, result_list ,pathparts):
+def list_results(clst, request, result_list):
     if clst.formset:
-        raise NotImplemented("")
+        raise NotImplementedError("Dag Admin as formSet not supported")
     else:
         for res in result_list:
             yield (
-                res.pk, '', '',
-                res.children_count, '', '',
-                list(items_for_result(clst, res, None,
-                    depth=0,
-                    has_children=bool(res.children),
-                ))), None
+                (
+                    res.pk, '', '',
+                    res.children_count, '', '',
+
+                    list(
+                        items_for_result(
+                            clst, res, None,
+                            depth=0,
+                            has_children=bool(res.children),
+                        )
+                    )
+                ),
+                None
+            )
 
 
-def tree_results(clst, request, result_list ,pathparts, ppath):
+def tree_results(clst, request, result_list):
     """
     For each row/item in the dag should yield a tuple of
         * node_id
@@ -233,35 +233,38 @@ def tree_results(clst, request, result_list ,pathparts, ppath):
     Some node will be yielded multiple times as the can be attached to multiple
     parent nodes
     """
-    lastnode=None
+    lastnode = None
     lastnode_detached = None
     lastnode_detached_path = []
 
     qs_pks = set(clst.get_results_tree(request).order_by().values_list('pk', flat=True))
 
     if clst.formset:
-        raise NotImplemented("")
+        raise NotImplementedError("Dag Admin as formSet not supported")
     else:
         for node in result_list:
             path = node.dag_node_path.split(',')
-            depth = len(path)-1
+            depth = len(path) - 1
             row = [
                 path[-1],
                 path[-2] if depth else '',
                 depth,
                 node.children_count,
-                    node.parent_questionedge_set.filter(
+                node.parent_questionedge_set.filter(
                         parent__in=map(int, path)
-                    ).values_list('pk', flat=True).first()
-                ,
+                    ).values_list('pk', flat=True).first(
+                ),
                 node.dag_node_path.replace(',', '-'),
-                list(items_for_result(clst, node, None,
-                    depth=depth,
-                    has_children=bool(node.children),
-                ))
+                list(
+                    items_for_result(
+                        clst, node, None,
+                        depth=depth,
+                        has_children=bool(node.children),
+                    )
+                )
             ]
             detached_path = get_detached_path(path, lastnode, qs_pks)
-            force_attach = (lastnode is None and set(map( int, path)) <= qs_pks)
+            force_attach = (lastnode is None and set(map(int, path)) <= qs_pks)
             next_detached = (lastnode_detached and (detached_path != []))
             lastnode_detached = (
                 not force_attach and
@@ -329,7 +332,7 @@ def result_tree(context, clist, request):
         'result_hidden_fields': list(result_hidden_fields(clist)),
         'result_headers': result_headers(context, clist, request),
         'results': {
-            'attached' : list(filter(lambda x: x is not None, attached)),
+            'attached': list(filter(lambda x: x is not None, attached)),
             'detached': list(filter(lambda x: x is not None, detached)),
         }
     }
@@ -360,11 +363,9 @@ def django_dag_admin_js():
     # http://www.lokkju.com/blog/archives/143
     TEMPLATE = (
         '<script type="text/javascript" src="{}"></script>'
-        '<script>'
-            '(function($){{jQuery = $.noConflict(true);}})(django.jQuery);'
-        '</script>'
+        '<script>(function($){{jQuery = $.noConflict(true);}})(django.jQuery);</script>'
         '<script type="text/javascript" src="{}"></script>'
-        )
+    )
     return format_html(
             TEMPLATE,
             mark_safe(js_file), mark_safe(jquery_ui)

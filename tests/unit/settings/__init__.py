@@ -1,31 +1,18 @@
 import os
 
 #
-# Minimal settings.py file to provide an emrty app to laucnh
+# Minimal settings.py file to provide an empty app to launch
 # our unittests from
 #
 
 DEBUG = True
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ADMINS = (
-    # ('Your Name', 'your_email@domain.com'),
-)
-
-MANAGERS = ADMINS
-
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3', # Add 'postgresql_psycopg2', 'postgresql', 'mysql', 'sqlite3' or 'oracle'.
-        'NAME': 'sqlite.db',                      # Or path to database file if using sqlite3.
-        'USER': '',                      # Not used with sqlite3.
-        'PASSWORD': '',                  # Not used with sqlite3.
-        'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
-        'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': 'sqlite.db',
     }
 }
-
-TIME_ZONE = 'UTC'
-LANGUAGE_CODE = 'en-us'
 
 SITE_ID = 1
 USE_I18N = True
@@ -80,4 +67,3 @@ TEMPLATES = [
     },
 ]
 TEST_RUNNER = 'django.test.runner.DiscoverRunner'
-

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-
 # Additional node utilities
+
 
 def get_nodedepth(node, root=None):
     """Return the node's depth"""
@@ -10,4 +10,4 @@ def get_nodedepth(node, root=None):
         roots = [root]
     else:
         roots = node.get_roots()
-    return min( map( lambda x:x.distance(node), roots ))
+    return min(map(lambda x: x.distance(node), roots))

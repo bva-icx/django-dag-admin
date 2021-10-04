@@ -34,7 +34,8 @@ django.setup()
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc',
+extensions = [
+    'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
@@ -171,5 +172,5 @@ intersphinx_mapping = {'https://docs.python.org/': None}
 issues_uri = 'https://github.com/bva/django-dag-admin/issues/{issue}'
 
 
-##JSDOC  / Sphinx js settings
+# JSDOC  / Sphinx js settings
 js_source_path = 'src/django_dag_admin/static/'

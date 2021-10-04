@@ -1,32 +1,30 @@
 from django.contrib.admin.views.main import (
-    ChangeList,  IGNORED_PARAMS as BASE_IGNORED_PARAMS
+    ChangeList, IGNORED_PARAMS as BASE_IGNORED_PARAMS
 )
 from django.core.paginator import InvalidPage
 from django.contrib.admin.options import IncorrectLookupParameters
-from django.db.models import Count, F, Value, Min, Q
-from django.db.models.functions import Coalesce
+from django.db.models import Count, F, Q
 from django.db.models import Exists
 from django.db.models import OuterRef, Subquery
-from django.db.models import ExpressionWrapper, F, IntegerField, TextField
 from django.contrib.admin.views.main import (
     ALL_VAR, ORDER_VAR, PAGE_VAR, SEARCH_VAR, IS_POPUP_VAR, TO_FIELD_VAR
 )
 # Additional changelist settings
 LAYOUT_VAR = 'sty'
 IGNORED_PARAMS = BASE_IGNORED_PARAMS + (LAYOUT_VAR, )
-
 TREE_LAYOUT = 'tree'
 LIST_LAYOUT = 'list'
 ORDERED_DAG_SEQUENCE_FIELD_NAME = '_sequence'
 
+
 class DagChangeList(ChangeList):
     def allow_node_drag(self, request):
         draggable = True
-        for k,v in self.params.items():
+        for k, v in self.params.items():
             if k in [ALL_VAR, IS_POPUP_VAR, TO_FIELD_VAR, PAGE_VAR]:
                 continue
             elif ORDER_VAR == k:
-                if v is not '' and self.model.sequence_manager:  # Sorted nodes thefore disable is sort enabled
+                if v != '' and self.model.sequence_manager:  # Sorted nodes thefore disable is sort enabled
                     draggable = False
             elif SEARCH_VAR == k:
                 if v != '':
@@ -58,7 +56,7 @@ class DagChangeList(ChangeList):
                 base = part.lstrip('-')
             elif isinstance(part, F):
                 base = part.name
-                order_type=''
+                order_type = ''
             if base == ORDERED_DAG_SEQUENCE_FIELD_NAME:
                 yield part
             else:
@@ -69,10 +67,9 @@ class DagChangeList(ChangeList):
             .annotate(
                 children_count=Count('children', distinct=True),
                 usage_count=Subquery(
-                    self.model.get_node_model() \
-                        .objects \
-                        .filter(pk = OuterRef('id'))
-                        .annotate(usage_count = Count('parents__pk'))
+                    self.model.get_node_model().objects
+                        .filter(pk=OuterRef('id'))
+                        .annotate(usage_count=Count('parents__pk'))
                         .values('usage_count')
                 )
             )
@@ -86,25 +83,23 @@ class DagChangeList(ChangeList):
         return qs
 
     def get_results_edgetree(self, request):
-        qs = self.model.get_edge_model() \
-            .objects \
-            .filter(
-                Q(child_id__in = self.queryset.values('pk') )
-             ) \
-            .annotate(
-                siblings_count=Count('parent__children', distinct=True),
-                is_child=Count('parent__parents'),
-                children_count=Count('child__children', distinct=True),
-                parent_used = Exists(self.queryset.filter(pk = OuterRef('parent_id')))
-            )
-
+        qs = (
+            self.model.get_edge_model()
+                .objects
+                .filter(Q(child_id__in=self.queryset.values('pk')))
+                .annotate(
+                    siblings_count=Count('parent__children', distinct=True),
+                    is_child=Count('parent__parents'),
+                    children_count=Count('child__children', distinct=True),
+                    parent_used=Exists(self.queryset.filter(pk=OuterRef('parent_id')))
+            ))
         if not qs.query.select_related:
             qs = self.apply_select_related(qs, for_edge=True)
 
         if self.model.sequence_manager:
             order_component = self.model.sequence_manager \
                 .get_edge_rel_sort_query_component(self.model, 'child', 'parent')
-            qs = qs.annotate(**{ORDERED_DAG_SEQUENCE_FIELD_NAME:order_component})
+            qs = qs.annotate(**{ORDERED_DAG_SEQUENCE_FIELD_NAME: order_component})
 
         # Set ordering.
         ordering = list(self._convert_order_node_to_edge(self.get_ordering(request, qs,)))
@@ -112,14 +107,13 @@ class DagChangeList(ChangeList):
         return qs
 
     def get_results_list(self, request):
-        qs = self.queryset \
-            .annotate(
+        qs = self.queryset.annotate(
                 children_count=Count('children', distinct=True),
                 usage_count=Subquery(
-                    self.model.get_node_model() \
-                        .objects \
-                        .filter(pk = OuterRef('id'))
-                        .annotate(usage_count = Count('parents__pk'))
+                    self.model.get_node_model()
+                        .objects
+                        .filter(pk=OuterRef('id'))
+                        .annotate(usage_count=Count('parents__pk'))
                         .values('usage_count')
                 )
             )
@@ -203,7 +197,7 @@ class DagChangeList(ChangeList):
 
         if self.list_select_related:
             if for_edge:
-                related = [ "child__{}".format(relation) for relation in self.list_select_related]
+                related = ["child__{}".format(relation) for relation in self.list_select_related]
                 return qs.select_related(*related)
             return qs.select_related(*self.list_select_related)
         return qs

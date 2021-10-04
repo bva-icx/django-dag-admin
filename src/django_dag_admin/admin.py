@@ -1,27 +1,11 @@
 # -*- coding: utf-8 -*-
-import sys
-
-import django
-from django.conf import settings
 from django.conf.urls import url
 from django.contrib import admin, messages
-from django.db.models import Min, Value as V
-from django.db.models.functions import Coalesce
 from django.core.exceptions import ValidationError
-from django.db.models import OuterRef, Subquery
-from django.db.models import Count, F, Value
-
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.utils.translation import ugettext_lazy as _
-from django.utils.encoding import force_str
-
 from django_dag.models.order_control import Position
 from .actions import actions as dag_actions
-
-try:
-    from django.contrib.admin.options import TO_FIELD_VAR
-except ImportError:
-    from django.contrib.admin.views.main import TO_FIELD_VAR
 
 
 class DjangoDagAdmin(admin.ModelAdmin):
@@ -42,9 +26,8 @@ class DjangoDagAdmin(admin.ModelAdmin):
         return filter(None, actions)
 
     def get_queryset(self, request):
-        qs=super().get_queryset(request)
-        oqs = qs.with_sort_sequence()
-        return oqs
+        qs = super().get_queryset(request)
+        return qs.with_sort_sequence()
 
     def get_object(self, request, object_id, from_field=None):
         """
@@ -123,7 +106,8 @@ class DjangoDagAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         from django.views.i18n import JavaScriptCatalog
 
-        jsi18n_url = url(r'^jsi18n/$',
+        jsi18n_url = url(
+            r'^jsi18n/$',
             JavaScriptCatalog.as_view(packages=['django-dag-admin']),
             name='javascript-catalog'
         )
@@ -143,7 +127,7 @@ class DjangoDagAdmin(admin.ModelAdmin):
             return self.model.children.through.objects.filter(
                 child_id=child_id,
                 parent_id=parent_id
-                ).first()
+            ).first()
         return None
 
     def validate_move(self, node, target,):
@@ -182,21 +166,23 @@ class DjangoDagAdmin(admin.ModelAdmin):
                         messages.error(request, _('Node has too many parents'))
                         return HttpResponseBadRequest('Too many parents')
                     elif edge:
-                        messages.info(request, _('Move node "%(node)s" to root' % {'node': node }))
+                        messages.info(
+                            request,
+                            _('Move node "%(node)s" to root' % {'node': node}))
                         edge.delete()
                         return HttpResponse('OK')
                     # No move needed
                     return HttpResponse('OK')
                 if as_clone or edge is None:
                     if bool(node.sequence_manager):
-                        newedge = target.insert_child_after(node, sibling_before)
+                        target.insert_child_after(node, sibling_before)
                     else:
-                        newedge = target.add_child(node)
+                        target.add_child(node)
                 elif edge:
                     if bool(node.sequence_manager):
                         edge.child.move_node(
                             edge.parent, target, sibling_before,
-                            position = Position.AFTER if sibling_before else Position.LAST)
+                            position=Position.AFTER if sibling_before else Position.LAST)
                     else:
                         edge.child.move_node(edge.parent, target)
                 else:
@@ -205,7 +191,7 @@ class DjangoDagAdmin(admin.ModelAdmin):
             else:
                 messages.error(request, _('Invalid topological move, causes circular node paths'))
                 return HttpResponseBadRequest('Invalid move')
-        except Exception as err:
+        except Exception:
             return HttpResponseBadRequest('Exception raised during move')
 
         if as_child:

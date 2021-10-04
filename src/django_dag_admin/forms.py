@@ -1,18 +1,15 @@
 # -*- coding: utf-8 -*-
 """Forms for Django-Dag Models"""
 
-
 from django import forms
-from django.db.models.query import QuerySet
 from django.db.models import Count
 from django.core.exceptions import ValidationError
-from django.forms.models import BaseModelForm, ErrorList, model_to_dict
-from django.forms.models import modelform_factory
-
+from django.forms.models import ErrorList
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext_lazy as _
 from django_dag_admin.utils import get_nodedepth
+
 
 class BaseDagMoveForm(forms.ModelForm):
     @staticmethod
@@ -25,7 +22,7 @@ class BaseDagMoveForm(forms.ModelForm):
         try:
             if for_node:
                 node._meta.model.circular_checker(node, for_node)
-        except ValidationError as err:
+        except ValidationError:
             # Catch ValidationError ie The object is an ancestor or it's self
             pass
         else:
@@ -49,6 +46,7 @@ class BaseDagMoveForm(forms.ModelForm):
             cls.add_subtree(for_node, node, options)
         return options
 
+
 class MoveEdgeForm(BaseDagMoveForm):
     def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
                  initial=None, error_class=ErrorList, label_suffix=':',
@@ -61,10 +59,9 @@ class MoveEdgeForm(BaseDagMoveForm):
             raise ValueError('ModelForm has no model class specified')
 
         choices = None
-        parentModel = opts.model.parent.field.remote_field.model
         if choices is not None:
             lct = dict(self.base_fields['parent'].limit_choices_to)
-            lct.update({ 'pk__in' :[ cc[0] for cc in choices] })
+            lct.update({'pk__in': [cc[0] for cc in choices]})
             self.base_fields['parent'].limit_choices_to = lct
 
         super().__init__(
@@ -72,7 +69,6 @@ class MoveEdgeForm(BaseDagMoveForm):
             initial=initial, error_class=error_class,
             label_suffix=label_suffix, empty_permitted=empty_permitted,
             instance=instance, **kwargs)
-
 
     def clean(self):
         cleaned_data = super().clean()
@@ -89,6 +85,7 @@ class MoveEdgeForm(BaseDagMoveForm):
         except ValidationError as err:
             self.add_error('parent', err)
         return cleaned_data
+
 
 class MoveNodeForm(BaseDagMoveForm):
     pass
