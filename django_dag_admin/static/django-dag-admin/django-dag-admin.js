@@ -17,7 +17,10 @@
         var node_id = $elem.attr('node');
         var parent_id = $elem.attr('parent');
         var edge_id = $elem.attr('edge');
-        var path = $elem.attr('id').split('-').slice(0,-1).join('-');
+        var path = ''
+            if ($elem.attr('id') !== undefined) {
+                path = $elem.attr('id').split('-').slice(0,-1).join('-');
+            }
         var level = parseInt($elem.attr('level'));
         var children_num = parseInt($elem.attr('children-num'));
         return {
@@ -56,7 +59,7 @@
             },
             parent_node: function () {
                 // Returns a Node object of the parent
-                return new Node($('tr[node=' + parent_id + ']', $elem.parent())[0]);
+                return new Node($('tr[id$=' + parent_id + ']', $elem.parent())[0]);
             },
             expand: function (as_clone) {
                 // Display each kid (will display in collapsed state)
@@ -211,14 +214,23 @@
                             }
                         } else if (evt2.pageY >= rtop + rowHeight / 2 && evt2.pageY <= rtop + rowHeight) {
                             // The mouse is positioned on the bottom half of a row
-                           $targetRow = $row;
+                            $targetRow = $row;
                             as_child = false;
+                            parent_node = node.parent_node()
+
+                            target_node = new Node($targetRow[0]);
+                            ourRowHeight = rowHeight
+                            if (!target_node.is_collapsed()) {
+                                ourRowHeight = rowHeight * Math.max(target_node.children(false).length + (
+                                    parent_node.node_id===target_node.node_id? 0: 1
+                                ), 1);
+                            }
                             $drag_line.css({
                                 'left': node.$elem.offset().left,
                                 'width': node.$elem.width(),
                                 'top': rtop,
                                 'borderWidth': '5px',
-                                'height': rowHeight,
+                                'height': ourRowHeight,
                                 'opacity': 0.4,
                                 'background-image': 'linear-gradient(to bottom, '+ DRAG_LINE_COLOR +', white)',
                             });
