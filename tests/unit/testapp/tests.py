@@ -18,7 +18,7 @@ from django.templatetags.static import static
 
 #from django_dag_admin.admin import admin_factory, TO_FIELD_VAR
 #from django_dag_admin.templatetags.admin_tree import get_static_url
-#from django_dag_admin.tests import models
+from .models import ConcreteNode
 #from django_dag_admin.tests.admin import register_all as admin_register_all
 
 
@@ -51,7 +51,17 @@ class AdminTests(TestCase):
         #print (vars(resp))
         #After addin we are redirected to the index.
         self.assertEqual(resp.status_code, 302)
- 
+
+    def test_can_change_a_node(self,):
+        origanal_node = ConcreteNode.objects.create(name='Node X')
+        url = reverse("admin:testapp_concretenode_change", args=(origanal_node.pk,))
+        new_name = 'Node Y'
+        resp = self.admin_client.post(url, {'name':new_name, '_save':'save'})
+        #print (vars(resp))
+        #After addin we are redirected to the index.
+        self.assertEqual(resp.status_code, 302)
+        new_node = ConcreteNode.objects.get(pk = origanal_node.pk)
+        self.assertEqual(new_node.name, new_name)
 
 class TestAdminDagTemplateTags(TestCase):
     def test_dag_css(self):
