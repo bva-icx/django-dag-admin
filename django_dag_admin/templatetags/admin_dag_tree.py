@@ -6,6 +6,7 @@ These are to support the adding of drag and drop to the change list
 
 import datetime
 import sys
+import logging
 from itertools import chain
 
 import django
@@ -39,6 +40,8 @@ from urllib.parse import urljoin
 from django.utils.html import format_html
 from django_dag_admin.templatetags import needs_checkboxes
 from django_dag_admin.utils import get_nodedepth
+
+logger = logging.getLogger(__name__)
 
 
 def get_result_and_row_class(clist, field_name, result):
@@ -105,6 +108,22 @@ def get_drag_handler(first):
     return drag_handler
 
 
+def get_detached_path_items(clist, upper_parent, node_path):
+    for parent in upper_parent.ancestors:
+        if str(parent.pk).rjust(4,'0') in node_path:
+            for attr in ['pk']:
+                value = parent.serializable_value(attr)
+                result_id = "'%s'" % force_str(value)
+                url = clist.url_for_result(parent)
+                onclickstr = (
+                    ' onclick="opener.dismissRelatedLookupPopup(window, %s);'
+                    ' return false;"')
+                yield mark_safe('<a href="%s"%s>%s</a>' % (
+                        url, (clist.is_popup and onclickstr % result_id or ''),
+                        conditional_escape(force_str(value))
+                        ))
+
+
 def items_for_result(clist, result, form, depth=None, has_children=0):
     """
     Generates the actual list of data.
@@ -168,6 +187,7 @@ def items_for_result(clist, result, form, depth=None, has_children=0):
         yield format_html('<td>{0}</td>',
                           force_str(form[clist.model._meta.pk.name]))
 
+
 def get_path_id(root_parts, leaf ):
     return '-'.join(map(
         lambda x:str(x.pk),
@@ -175,38 +195,19 @@ def get_path_id(root_parts, leaf ):
             root_parts, [leaf]
         )))
 
-class FakeEdge:
-    def __init__(self, parent_id, child, children_count, pk):
-        self.parent_id=0
-        self.child = child
-        self.children_count = children_count
-        self.pk = pk
-        self.parent_used = False
 
 def results(clst, request):
     yield None, None  # Fake entry to ensure list as started and can be split
     if clst.get_layout_style(request) == LIST_LAYOUT:
         yield from list_results(clst, request, clst.result_list ,pathparts=[])
-    else:
-        processlist = [
-            # Add root and island nodes
-            FakeEdge(
-                node.prime_parent, node, 1, bool(node.prime_parent)
 
-            ) for node in clst.result_list_extra if not bool(node.prime_parent)
-        ] + list(clst.result_list) + [
-            # Add detached nodes
-            FakeEdge(
-                node.prime_parent, node, 1, bool(node.prime_parent)
-            ) for node in clst.result_list_extra if bool(node.prime_parent)
-        ]
-        yield from tree_results(clst, request, processlist, pathparts=[])
+    else:
+        yield from tree_results(clst, request, clst.result_list, pathparts=[], ppath='')
+
 
 def list_results(clst, request, result_list ,pathparts):
-
     if clst.formset:
-        pass
-
+        raise NotImplemented("")
     else:
         for res in result_list:
             yield (
@@ -218,51 +219,82 @@ def list_results(clst, request, result_list ,pathparts):
                 ))), None
 
 
-def tree_results(clst, request, result_list ,pathparts):
+def tree_results(clst, request, result_list ,pathparts, ppath):
     """
     For each row/item in the dag should yield a tuple of
-    (node_id, parent_id, node_level, children_num, edge_id, path, result)
+        * node_id
+        * parent_id
+        * node_level
+        * children_num
+        * edge_id
+        * path
+        * result
 
     Some node will be yielded multiple times as the can be attached to multiple
     parent nodes
-
-
     """
-    process_start_id=0
-    if pathparts:
-        root=pathparts[-1]
-        process_start_id=root.pk
-    depth = len(pathparts)
+    lastnode=None
+    lastnode_detached = None
+    lastnode_detached_path = []
+
+    qs_pks = set(clst.get_results_tree(request).order_by().values_list('pk', flat=True))
 
     if clst.formset:
         raise NotImplemented("")
-
     else:
-        root_added=[]
-        for res in result_list:
-            if res.parent_id == process_start_id or (res.pk is False and depth==0):
-                row = (
-                    res.child.pk, process_start_id, depth,
-                    res.children_count, res.pk, get_path_id(pathparts, res.child),
-                    list(items_for_result(clst, res.child, None,
-                        depth=depth,
-                        has_children=bool(res.children_count),
-                    )))
-                if depth==0:
-                    root_added.append(res.child.id)
-                    if res.pk:
-                        # Detached
-                        yield None, row
-                        for srow in tree_results(clst, request, result_list, pathparts+[res.child]):
-                            yield None, srow
-                    else:
-                        # Attached
-                        yield row, None
-                        for srow in tree_results(clst, request, result_list, pathparts+[res.child]):
-                            yield srow, None
+        for node in result_list:
+            path = node.dag_node_path.split(',')
+            depth = len(path)-1
+            row = [
+                path[-1],
+                path[-2] if depth else '',
+                depth,
+                node.children_count,
+                    node.parent_questionedge_set.filter(
+                        parent__in=map(int, path)
+                    ).values_list('pk', flat=True).first()
+                ,
+                node.dag_node_path.replace(',', '-'),
+                list(items_for_result(clst, node, None,
+                    depth=depth,
+                    has_children=bool(node.children),
+                ))
+            ]
+            detached_path = get_detached_path(path, lastnode, qs_pks)
+            force_attach = (lastnode is None and set(map( int, path)) <= qs_pks)
+            next_detached = (lastnode_detached and (detached_path != []))
+            lastnode_detached = (
+                not force_attach and
+                (
+                    next_detached or
+                    (len(path) > 1 and (lastnode is None or lastnode[0] != path[0]))
+                )
+            )
+            if lastnode_detached:
+                # Detached
+                testlen = min(len(detached_path), len(lastnode_detached_path))
+                newgroup = detached_path[:testlen] != lastnode_detached_path[:testlen]
+                if testlen == 0 or newgroup:
+                    row.append(get_detached_path_items(clst, node, detached_path))
+                    lastnode_detached_path = detached_path
                 else:
-                    yield row
-                    yield from tree_results(clst, request, result_list, pathparts+[res.child])
+                    row.append(None)
+                yield None, tuple(row)
+            else:
+                # Attached
+                yield row, None
+            lastnode = path
+
+
+def get_detached_path(node_path, lastnode_path, qs_pks,):
+    last_path = lastnode_path if lastnode_path else []
+    rval = []
+    for path_idx, pathpoint in enumerate(node_path):
+        if not int(pathpoint) in qs_pks:
+            rval.append(pathpoint)
+        elif path_idx < len(last_path) and pathpoint == last_path[path_idx]:
+            rval.append(pathpoint)
+    return rval
 
 
 def result_headers(context, clist, request):
@@ -289,7 +321,6 @@ def result_tree(context, clist, request):
     been affected by a GET param or not. Only when the results are not filtered
     you can drag and sort the tree
     """
-
     attached, detached = list(zip(*list(results(clist, request))))
     return {
         'draggable': clist.allow_node_drag(request),

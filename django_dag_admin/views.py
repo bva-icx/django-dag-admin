@@ -1,6 +1,8 @@
 from django.contrib.admin.views.main import (
     ChangeList,  IGNORED_PARAMS as BASE_IGNORED_PARAMS
 )
+from django.core.paginator import InvalidPage
+from django.contrib.admin.options import IncorrectLookupParameters
 from django.db.models import Count, F, Value, Min, Q
 from django.db.models.functions import Coalesce
 from django.db.models import Exists
@@ -27,13 +29,11 @@ class DagChangeList(ChangeList):
                 if v is not '' and self.model.sequence_manager:  # Sorted nodes thefore disable is sort enabled
                     draggable = False
             elif SEARCH_VAR == k:
-                if v is not '':
+                if v != '':
                     draggable = False  # disbaled moving nodes if filters are active
             elif LAYOUT_VAR == k:
                 if v != TREE_LAYOUT:
                     draggable = False  # disable is not in tree view
-            else:
-                draggable = False
         return draggable
 
     # Copied from Django "version": "==2.2.19"
@@ -64,70 +64,32 @@ class DagChangeList(ChangeList):
             else:
                 yield "{}child__{}".format(order_type, base)
 
-    def get_results_tree_relnode_extra(self, queryset):
+    def get_results_tree(self, request):
         qs = self.queryset \
-            .exclude(parent_questionedges__parent__in=queryset)
-        if not qs.query.select_related:
-            qs = self.apply_select_related(qs)
-        if self.model.sequence_manager:
-            qs = qs.annotate(**{ORDERED_DAG_SEQUENCE_FIELD_NAME: Value('a', output_field=TextField())})
-
-        # Set ordering.
-        ordering = list(self.get_ordering(request, qs,))
-        qs = qs.order_by(*ordering)
-        return qs
-
-    def get_results_tree_extra(self, request, edge_queryset):
-        ordering = list(self.get_ordering(request, self.queryset))
-        name = self.model.get_edge_model()._meta.model_name
-        def build_q(ref, value):
-            return Q(**{ ref % {'name' : name}: value})
-
-        def mod_query(qs):
-            if not qs.query.select_related:
-                qs = self.apply_select_related(qs)
-            if self.model.sequence_manager:
-                qs = qs.annotate(
-                    **{
-                        ORDERED_DAG_SEQUENCE_FIELD_NAME: Value(
-                            'a', output_field=TextField())
-                    })
-            qs = qs.annotate(
-                prime_parent= Coalesce(
-                    F('parents__id'),
-                    Value(0, output_field=IntegerField()),
-                    output_field=IntegerField()
+            .annotate(
+                children_count=Count('children', distinct=True),
+                usage_count=Subquery(
+                    self.model.get_node_model() \
+                        .objects \
+                        .filter(pk = OuterRef('id'))
+                        .annotate(usage_count = Count('parents__pk'))
+                        .values('usage_count')
                 )
             )
-            return qs
-
-        child_ids = list(edge_queryset.values_list('child_id',flat=True))
-        nodes_ids = list(self.queryset.order_by().values_list('pk',flat=True))
-        ditached_qs = mod_query(
-            self.queryset \
-                .filter(
-                    ~Q(
-                        build_q("parent_%(name)ss__parent_id__in", child_ids) |
-                        build_q("parent_%(name)ss__isnull", True) |
-                        Q(Q(parents__parents__isnull=True) & Q(parents__id__in=nodes_ids))
-                    )
-                ) \
-            ).distinct() \
-            .order_by()  #  Remove any order by as this is not allowed (postgres copes but not sqlite3 )
-        root_qs = mod_query(
-                self.queryset.filter(build_q("parent_%(name)ss__isnull",True))
-            ) \
-            .order_by()  #  Remove any order by as this is not allowed (postgres copes but not sqlite3 )
-        qs = root_qs.union(ditached_qs).distinct()
-        # Set ordering.
+        qs = self.apply_select_related(qs)
+        ordering = self.get_ordering(request, qs)
+        if self.model.sequence_manager:
+            ordering = ['dag_sequence_path', ]
+        else:
+            ordering = ['dag_pk_path', ]
         qs = qs.order_by(*ordering)
         return qs
 
-    def get_results_tree(self, request):
+    def get_results_edgetree(self, request):
         qs = self.model.get_edge_model() \
             .objects \
             .filter(
-                Q(child_id__in = self.queryset )
+                Q(child_id__in = self.queryset.values('pk') )
              ) \
             .annotate(
                 siblings_count=Count('parent__children', distinct=True),
@@ -162,18 +124,15 @@ class DagChangeList(ChangeList):
                 )
             )
         qs = self.apply_select_related(qs)
-
-        if self.model.sequence_manager:
-            order_component = self.model.sequence_manager \
-                .get_node_rel_sort_query_component(self.model, 'child', 'parent')
-            qs = qs.annotate(**{ORDERED_DAG_SEQUENCE_FIELD_NAME:order_component})
-
         ordering = self.get_ordering(request, qs)
         qs = qs.order_by(*ordering)
         return qs
 
     def get_results(self, request):
         self.result_list_extra = []
+
+        # Add annotation to show detached nodes here
+        # to self.queryset look for no parent matching path / parents
         if self.get_layout_style(request) == LIST_LAYOUT:
             qs = self.get_results_list(request)
         else:
@@ -199,11 +158,6 @@ class DagChangeList(ChangeList):
                 result_list = paginator.page(self.page_num + 1).object_list
             except InvalidPage:
                 raise IncorrectLookupParameters
-
-        if self.get_layout_style(request) != LIST_LAYOUT:
-            self.result_list_extra = self.get_results_tree_extra(
-                    request, result_list)
-            result_count += len(self.result_list_extra)
 
         self.result_count = result_count
         self.show_full_result_count = self.model_admin.show_full_result_count
@@ -232,8 +186,6 @@ class DagChangeList(ChangeList):
             ordering = self.model_admin.ordering
         elif self.lookup_opts.ordering:
             ordering = self.lookup_opts.ordering
-        elif bool(self.model.sequence_manager):
-            ordering = [ ORDERED_DAG_SEQUENCE_FIELD_NAME, ]
         return ordering
 
     def apply_select_related(self, qs, for_edge=False):
@@ -244,9 +196,10 @@ class DagChangeList(ChangeList):
 
         if self.list_select_related is False:
             if self.has_related_field_in_list_display():
-                if for_edge:
-                    return qs.select_related()
                 return qs.select_related()
+            if for_edge:
+                return qs.select_related()
+            return qs
 
         if self.list_select_related:
             if for_edge:

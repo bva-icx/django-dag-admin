@@ -1,0 +1,6 @@
+{% for node_id in path %}
+    {% if forloop.counter > 1 %}
+        <span>--></span>
+    {% endif %}
+    {{node_id}}
+{%endfor%}

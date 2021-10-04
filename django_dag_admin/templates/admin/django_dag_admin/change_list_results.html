@@ -46,9 +46,11 @@
                     <tr
                         id="path-{{ path }}"
                         class="{% cycle 'row1' 'row2' %}"
-                        level="{{ node_level }}" children-num="{{ children_num }}"
-                        parent="{{ parent_id }}" node="{{ node_id }}"
-                        edge="{{ edge_id }}"
+                        level="{{ node_level }}"
+                        children-num="{{ children_num }}"
+                        parent="{{ parent_id }}"
+                        node="{{ node_id }}"
+                        edge="{% if edge_id %}{{ edge_id }}{% endif %}"
                         >
                         {% for item in result %}
                             {% if forloop.counter == 1 %}
@@ -62,13 +64,16 @@
             {% endif %}
             {% if results.detached %}
                 <tbody>
-                    {% if results.attached or show_detached_label %}<tr>
-                        <th scope="col" colspan="{{result_headers|length}}">
-                            <div class="text">Detached Nodes</div>
-                        </th>
-                    </tr>
-                    {% endif %}
-                    {% for node_id, parent_id, node_level, children_num, edge_id, path, result in results.detached %}
+                    {% for node_id, parent_id, node_level, children_num, edge_id, path, result, detach_path in results.detached %}
+                        {% if detach_path and show_detached_label %}
+                        <tr>
+                            <th scope="col" colspan="{{result_headers|length}}">
+                                <div class="text">Detached from Nodes
+                                    {% include "admin/django_dag_admin/change_list_result_path.html" with path=detach_path %}
+                                </div>
+                            </th>
+                        </tr>
+                        {% endif %}
                         <tr
                             id="path-{{ path }}"
                             class="{% cycle 'row1' 'row2' %}"
