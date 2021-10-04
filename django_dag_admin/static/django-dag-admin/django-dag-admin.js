@@ -260,10 +260,10 @@
                                     type: 'POST',
                                     data: {
                                         node_id: node.node_id,
-                                        parent_id: target_node.parent_id,
+                                        node_parent_id: node.parent_id,
                                         sibling_id: target_node.node_id,
                                         as_child: as_child ? 1 : 0,
-                                        edge_id: node.edge_id,
+                                        sibling_parent_id: target_node.parent_id,
                                         as_clone: as_clone ? 1 : 0,
 
                                     },
