@@ -11,3 +11,5 @@ dist
 htmlcov/
 .coverage*
 .coverage
+src/django_dag_admin/_version.py
+/dist/
