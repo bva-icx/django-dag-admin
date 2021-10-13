@@ -253,10 +253,9 @@ def tree_results(clst, request, result_list):
                 getattr(
                         node,
                         node.parents.through._meta.get_field('child').remote_field.related_name
-                    ).filter(
-                        parent__in=map(int, path)
-                    ).values_list('pk', flat=True).first(
-                ),
+                ).filter(
+                    parent__in=map(int, path)
+                ).values_list('pk', flat=True).first(),
                 node.dag_node_path.replace(',', '-'),
                 list(
                     items_for_result(
