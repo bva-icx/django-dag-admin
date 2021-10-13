@@ -250,7 +250,10 @@ def tree_results(clst, request, result_list):
                 path[-2] if depth else '',
                 depth,
                 node.children_count,
-                node.parent_questionedge_set.filter(
+                getattr(
+                        node,
+                        node.parents.through._meta.get_field('child').remote_field.related_name
+                    ).filter(
                         parent__in=map(int, path)
                     ).values_list('pk', flat=True).first(
                 ),
