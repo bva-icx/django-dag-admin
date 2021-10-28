@@ -243,7 +243,7 @@ def tree_results(clst, request, result_list):
         raise NotImplementedError("Dag Admin as formSet not supported")
     else:
         for node in result_list:
-            path = node.dag_node_path.split(',')
+            path = node.dag_node_path.split(clst.model_admin.path_seperator)
             depth = len(path) - 1
             row = [
                 path[-1],
@@ -256,7 +256,7 @@ def tree_results(clst, request, result_list):
                 ).filter(
                     parent__in=map(int, path)
                 ).values_list('pk', flat=True).first(),
-                node.dag_node_path.replace(',', '-'),
+                node.dag_node_path.replace(clst.model_admin.path_seperator, '-'),
                 list(
                     items_for_result(
                         clst, node, None,

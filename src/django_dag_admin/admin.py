@@ -13,6 +13,9 @@ class DjangoDagAdmin(admin.ModelAdmin):
     change_list_template = 'admin/django_dag_admin/change_list.html'
     show_attached_label = False
     show_detached_label = True
+    sort_path_padding_size = None
+    sort_path_padding_char = None
+    sort_path_seperator = None
 
     def _get_base_actions(self):
         actions = list([
@@ -27,7 +30,11 @@ class DjangoDagAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.with_sort_sequence()
+        return qs.with_sort_sequence(
+            padsize=self.sort_path_padding_size or qs.path_padding_size,
+            padchar=self.sort_path_padding_char or qs.path_padding_char,
+            sepchar=self.sort_path_seperator or qs.path_seperator,
+        )
 
     def get_object(self, request, object_id, from_field=None):
         """
